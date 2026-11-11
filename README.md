@@ -55,10 +55,11 @@ python -m venv .venv
 # 2. 复制配置（不填密钥也能跑：默认用演示模型 + 关键词检索）
 Copy-Item .env.example .env
 
-# 3. 放两篇文档进知识库（仓库自带示例）
-Copy-Item -Recurse examples\knowledge\* data\knowledge\
+# 3. 放几篇文档进知识库（仓库自带示例）
+New-Item -ItemType Directory -Force data\knowledge | Out-Null
+Copy-Item examples\knowledge\*.md data\knowledge\
 
-# 4. 启动
+# 4. 启动（默认 fake 模型 + 关键词检索，零外部依赖）
 .venv\Scripts\python -m tsukiyohub
 ```
 
@@ -252,15 +253,18 @@ TsukiyoHub
 ## 开发与验证
 
 ```powershell
-# 后端测试
+# 后端测试（278 个用例，零外部依赖）
 $env:PYTHONPATH="E:\Project\TsukiyoHub\server"
 python -m pytest tests -q
 
 # 前端构建
 cd web; npm run build
 
-# 冒烟（启动服务后）
-python scripts\smoke.py
+# 冒烟：先启动服务，再跑（会真的上传示例文档、走一次问答与流式）
+python scripts\smoke.py --base http://127.0.0.1:8080
+
+# 一键自检（编译 + 单测 + 可选启动冒烟）
+.\scripts\check.ps1 -Smoke
 ```
 
 ---
