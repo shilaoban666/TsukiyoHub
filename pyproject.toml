@@ -1,0 +1,75 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tsukiyohub"
+version = "0.1.0"
+description = "TsukiyoHub —— 与业务无关的「聊天 + 技能 + RAG」内核服务，任何前端都可以接入"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "TsukiyoHub" }]
+keywords = ["rag", "chat", "agent", "skills", "mcp", "fastapi", "llm"]
+
+dependencies = [
+    # Web
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "python-multipart>=0.0.9",
+    # 配置与数据契约
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    # 数据库（默认 PostgreSQL；本地/测试可用 SQLite）
+    "SQLAlchemy>=2.0.30",
+    "psycopg[binary]>=3.1",
+    # 模型与编排
+    "langchain-core>=0.3",
+    "langchain-openai>=0.2",
+    # 检索
+    "numpy>=1.26",
+    "jieba>=0.42",
+    # 向量库客户端（可选启用；纯本地演示用内置内存实现）
+    "pymilvus>=2.4",
+    # HTTP / MCP
+    "httpx>=0.27",
+    "PyYAML>=6.0",
+    # 文档解析
+    "python-docx>=1.1",
+    "openpyxl>=3.1",
+    "python-pptx>=0.6.23",
+    "pypdf>=4.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.5",
+    "httpx>=0.27",
+]
+full = [
+    "redis>=5.0",
+    "pymupdf>=1.24",
+    "s3fs>=2024.6",
+]
+
+[project.scripts]
+tsukiyohub = "tsukiyohub.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["server"]
+include = ["tsukiyohub*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501", "B008"]

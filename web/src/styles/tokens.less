@@ -1,0 +1,100 @@
+// 设计 Token：所有颜色、间距、圆角、阴影只从这里取。
+// 浅色 / 深色两份，靠 html[data-theme] 切换；组件里一律用 var(--xxx)，不写死颜色。
+// 来源：复用旧前端 assets 并针对聊天场景补了气泡色与工作台布局尺寸。
+:root,
+html[data-theme='light'] {
+  --color-primary: #0089ff;
+  --color-primary-hover: #1a96ff;
+  --color-primary-active: #0070d6;
+  --color-primary-bg: #e6f3ff;
+  --color-success: #00b578;
+  --color-success-bg: #e6f8f1;
+  --color-warning: #ff8f1f;
+  --color-warning-bg: #fff3e6;
+  --color-error: #ff3141;
+  --color-error-bg: #ffebed;
+
+  --color-text-1: #171a1d;
+  --color-text-2: #5f6368;
+  --color-text-3: #a2a3a5;
+
+  --color-border: #e5e6eb;
+  --color-border-light: #f0f1f2;
+
+  --color-bg-page: #f5f6f7;
+  --color-bg-card: #ffffff;
+  --color-bg-hover: #f2f3f5;
+  --color-bg-sunken: #f7f8fa;
+  --color-bg-mask: rgba(0, 0, 0, 0.45);
+
+  --color-bubble-self: #0089ff;
+  --color-bubble-self-text: #ffffff;
+  --color-bubble-bot: #ffffff;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-float: 0 6px 16px rgba(0, 0, 0, 0.08);
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+
+  --font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
+  --fs-xs: 12px;
+  --fs-sm: 14px;
+  --fs-md: 16px;
+  --fs-lg: 20px;
+  --fs-xl: 28px;
+
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --dur-fast: 150ms;
+  --dur-base: 240ms;
+
+  /* 工作台布局尺寸 */
+  --header-height: 52px;
+  --session-col: 248px;
+  --source-col: 340px;
+
+  color-scheme: light;
+}
+
+html[data-theme='dark'] {
+  --color-primary: #3aa0ff;
+  --color-primary-hover: #5cb1ff;
+  --color-primary-active: #1a8cf0;
+  --color-primary-bg: rgba(58, 160, 255, 0.16);
+  --color-success: #28c88e;
+  --color-success-bg: rgba(40, 200, 142, 0.14);
+  --color-warning: #ffa14a;
+  --color-warning-bg: rgba(255, 161, 74, 0.14);
+  --color-error: #ff5a66;
+  --color-error-bg: rgba(255, 90, 102, 0.14);
+
+  --color-text-1: #e8e9eb;
+  --color-text-2: #a9adb3;
+  --color-text-3: #6d7075;
+
+  --color-border: #303133;
+  --color-border-light: #26272a;
+
+  --color-bg-page: #141414;
+  --color-bg-card: #1f1f1f;
+  --color-bg-hover: #2a2a2c;
+  --color-bg-sunken: #18181a;
+  --color-bg-mask: rgba(0, 0, 0, 0.6);
+
+  --color-bubble-self: #1f6fd1;
+  --color-bubble-self-text: #ffffff;
+  --color-bubble-bot: #2a2a2c;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-float: 0 6px 16px rgba(0, 0, 0, 0.45);
+
+  color-scheme: dark;
+}

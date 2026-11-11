@@ -1,0 +1,308 @@
+// 全局样式：重置 + 滚动条 + Markdown 排版 + 少量工具类。
+// 尽量少覆盖 Ant Design Vue 的内部结构，避免升级时样式打架。
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  font-size: var(--fs-sm);
+  color: var(--color-text-1);
+  background: var(--color-bg-page);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+  &:hover {
+    color: var(--color-primary-hover);
+  }
+}
+
+// 主题切换时给一次 240ms 的颜色过渡，避免生硬闪变
+html.theme-transition,
+html.theme-transition *,
+html.theme-transition *::before,
+html.theme-transition *::after {
+  transition:
+    background-color var(--dur-base) var(--ease),
+    border-color var(--dur-base) var(--ease),
+    color var(--dur-base) var(--ease) !important;
+}
+
+// 细滚动条：聊天区会长期滚动，系统默认滚动条太重
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 4px;
+  &:hover {
+    background: var(--color-text-3);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Markdown 排版（消息气泡 / 引用片段共用）
+// ---------------------------------------------------------------------------
+.md {
+  line-height: 1.68;
+  word-break: break-word;
+
+  > *:first-child {
+    margin-top: 0;
+  }
+  > *:last-child {
+    margin-bottom: 0;
+  }
+
+  p {
+    margin: 0 0 8px;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    margin: 14px 0 8px;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+  h1 {
+    font-size: var(--fs-lg);
+  }
+  h2 {
+    font-size: 17px;
+  }
+  h3 {
+    font-size: var(--fs-md);
+  }
+  h4 {
+    font-size: var(--fs-sm);
+  }
+
+  ul,
+  ol {
+    margin: 6px 0;
+    padding-left: 22px;
+  }
+  li {
+    margin: 2px 0;
+  }
+  li > p {
+    margin: 0;
+  }
+
+  blockquote {
+    margin: 8px 0;
+    padding: 2px 12px;
+    border-left: 3px solid var(--color-primary);
+    color: var(--color-text-2);
+    background: var(--color-bg-sunken);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  }
+
+  hr {
+    margin: 12px 0;
+    border: 0;
+    border-top: 1px solid var(--color-border);
+  }
+
+  table {
+    width: 100%;
+    margin: 8px 0;
+    border-collapse: collapse;
+    font-size: var(--fs-xs);
+  }
+  th,
+  td {
+    border: 1px solid var(--color-border);
+    padding: 6px 10px;
+    text-align: left;
+  }
+  th {
+    background: var(--color-bg-sunken);
+    font-weight: 600;
+  }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    background: var(--color-bg-hover);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+
+  // 代码块：等宽 + 深色底（不做语法高亮，但保证可读）
+  pre {
+    margin: 8px 0;
+    padding: 12px 14px;
+    overflow-x: auto;
+    background: var(--color-bg-sunken);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-md);
+    line-height: 1.55;
+
+    code {
+      background: transparent;
+      padding: 0;
+      font-size: 13px;
+      white-space: pre;
+    }
+  }
+
+  img {
+    max-width: 100%;
+    border-radius: var(--radius-sm);
+  }
+
+  a {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+}
+
+// 流式渲染的尾部纯文本：保留换行、视觉上不抖
+.md-tail,
+.md-streaming-code {
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+}
+
+// ---------------------------------------------------------------------------
+// 页面骨架（知识库 / 技能 / 设置三个长页面共用）
+// ---------------------------------------------------------------------------
+.page {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--color-bg-page);
+}
+
+.page-inner {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4) 48px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.page-title {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  color: var(--color-text-1);
+}
+
+.page-desc {
+  margin: 4px 0 0;
+  font-size: var(--fs-xs);
+  color: var(--color-text-2);
+  line-height: 1.7;
+}
+
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.block-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.block-title {
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--color-text-1);
+}
+
+.block {
+  display: block;
+}
+
+// ---------------------------------------------------------------------------
+// 工具类
+// ---------------------------------------------------------------------------
+.mono {
+  font-family: var(--font-mono);
+}
+.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.text-2 {
+  color: var(--color-text-2);
+}
+.text-3 {
+  color: var(--color-text-3);
+}
+.flex {
+  display: flex;
+  align-items: center;
+}
+.flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.gap-1 {
+  gap: var(--space-1);
+}
+.gap-2 {
+  gap: var(--space-2);
+}
+.gap-3 {
+  gap: var(--space-3);
+}
+
+// 关键词高亮（检索测试 / 引用片段）
+mark.hl {
+  background: var(--color-warning-bg);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+// 骨架/加载中的淡入，避免内容突然出现
+.fade-in {
+  animation: fadeIn var(--dur-base) var(--ease);
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

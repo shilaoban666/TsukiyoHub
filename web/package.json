@@ -1,0 +1,36 @@
+{
+  "name": "tsukiyohub-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "TsukiyoHub 通用聊天工作台（聊天 + 技能 + 知识库）参考前端",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "type-check": "vue-tsc --noEmit",
+    "preview": "vite preview --port 4173"
+  },
+  "dependencies": {
+    "@ant-design/icons-vue": "^7.0.1",
+    "ant-design-vue": "^4.2.6",
+    "axios": "^1.7.9",
+    "dayjs": "^1.11.13",
+    "dompurify": "^3.2.4",
+    "marked": "^15.0.7",
+    "pinia": "^2.3.1",
+    "pinia-plugin-persistedstate": "4.2.0",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "less": "^4.2.2",
+    "typescript": "~5.7.3",
+    "vite": "^6.2.0",
+    "vue-tsc": "^2.2.4"
+  },
+  "engines": {
+    "node": ">=18.18"
+  }
+}

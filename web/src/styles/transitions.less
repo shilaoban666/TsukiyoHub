@@ -1,0 +1,42 @@
+// 页面过渡：克制的淡入 + 轻微上移，不做花哨动画。
+// 保留 prefers-reduced-motion 全局降级。
+.page-fade-enter-active,
+.page-fade-leave-active {
+  transition: opacity var(--dur-base) var(--ease);
+}
+.page-fade-enter-from,
+.page-fade-leave-to {
+  opacity: 0;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity var(--dur-fast) var(--ease);
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition:
+    opacity var(--dur-base) var(--ease),
+    transform var(--dur-base) var(--ease);
+}
+.slide-up-enter-from,
+.slide-up-leave-to {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
