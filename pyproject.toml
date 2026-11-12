@@ -12,13 +12,6 @@ license = { text = "Apache-2.0" }
 authors = [{ name = "shilaoban666" }]
 keywords = ["rag", "chat", "agent", "skills", "mcp", "fastapi", "llm"]
 
-[project.urls]
-Homepage = "https://github.com/shilaoban666/TsukiyoHub"
-Repository = "https://github.com/shilaoban666/TsukiyoHub"
-Issues = "https://github.com/shilaoban666/TsukiyoHub/issues"
-Changelog = "https://github.com/shilaoban666/TsukiyoHub/blob/main/CHANGELOG.md"
-Documentation = "https://github.com/shilaoban666/TsukiyoHub/blob/main/docs/architecture.md"
-
 dependencies = [
     # Web
     "fastapi>=0.115",
@@ -47,6 +40,13 @@ dependencies = [
     "python-pptx>=0.6.23",
     "pypdf>=4.2",
 ]
+
+[project.urls]
+Homepage = "https://github.com/shilaoban666/TsukiyoHub"
+Repository = "https://github.com/shilaoban666/TsukiyoHub"
+Issues = "https://github.com/shilaoban666/TsukiyoHub/issues"
+Changelog = "https://github.com/shilaoban666/TsukiyoHub/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/shilaoban666/TsukiyoHub/blob/main/docs/architecture.md"
 
 [project.optional-dependencies]
 dev = [
