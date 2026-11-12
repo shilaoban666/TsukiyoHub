@@ -18,6 +18,7 @@ from fastapi.responses import JSONResponse
 from tsukiyohub import __version__ as VERSION
 from tsukiyohub.api import (
     routes_chat,
+    routes_gateway,
     routes_knowledge,
     routes_memory,
     routes_sessions,
@@ -146,6 +147,7 @@ def create_app() -> FastAPI:
     app.include_router(routes_knowledge.router, prefix="/api")
     app.include_router(routes_memory.router, prefix="/api")
     app.include_router(routes_system.router, prefix="/api")
+    app.include_router(routes_gateway.router, prefix="/api")
 
     _register_meta_routes(app)
     _register_middleware(app)

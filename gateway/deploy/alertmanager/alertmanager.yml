@@ -1,0 +1,117 @@
+# TsukiyoHub 网关 —— Alertmanager 配置
+#
+# 定位：Prometheus 侧（deploy/prometheus/alerts.yml）告警的「路由 + 去重 + 抑制」。
+# 网关内置告警引擎（internal/alert）不经过这里，它自己有 webhook/钉钉/slack 渠道。
+#
+# 版本要求：matchers 语法需要 Alertmanager >= 0.22（当前稳定版都满足）。
+# 启动：
+#   docker run -d --name alertmanager \
+#     -v ${PWD}/gateway/deploy/alertmanager:/etc/alertmanager:ro \
+#     -p 9093:9093 prom/alertmanager:latest \
+#     --config.file=/etc/alertmanager/alertmanager.yml
+#
+# 验证配置：
+#   docker run --rm -v ${PWD}:/cfg --entrypoint amtool prom/alertmanager:latest \
+#     check-config /cfg/alertmanager.yml
+
+global:
+  resolve_timeout: 5m
+  # 如果 webhook 接收端需要鉴权，用 http_config 统一加头：
+  # http_config:
+  #   authorization:
+  #     type: Bearer
+  #     credentials: "<token>"
+
+route:
+  # 兜底 receiver；下面的 routes 按 severity 分流
+  receiver: default-webhook
+  group_by: ["alertname", "severity", "component"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+  routes:
+    # critical：单独一组，立即发、发得勤
+    - matchers:
+        - 'severity="critical"'
+      receiver: critical-webhook
+      group_wait: 10s
+      group_interval: 2m
+      repeat_interval: 1h
+      continue: false
+
+    # warning / info：走默认渠道，节奏放慢
+    - matchers:
+        - 'severity=~"warning|info"'
+      receiver: default-webhook
+      repeat_interval: 4h
+
+receivers:
+  - name: default-webhook
+    webhook_configs:
+      # 接收端拿到的是 Alertmanager 自己的 JSON 格式（不是网关内置引擎的 {event,rule,gateway}）。
+      # 这里指向你的中转服务/机器人网关；没有的话可以先用一个 echo 服务验证链路。
+      - url: "http://host.docker.internal:9099/alertmanager"
+        send_resolved: true
+        max_alerts: 20
+
+  - name: critical-webhook
+    webhook_configs:
+      - url: "http://host.docker.internal:9099/alertmanager/critical"
+        send_resolved: true
+      # 也可以同时加邮件：邮件需要配置下面的 smarthost 段
+      # email_configs:
+      #   - to: "oncall@example.com"
+      #     send_resolved: true
+
+  # ── 换成钉钉群机器人 ──────────────────────────────────────────────────────
+  # Alertmanager 没有内置钉钉 receiver，标准做法是加一层中转：
+  #
+  # 1) 用 timonwong/prometheus-webhook-dingtalk（把 Alertmanager JSON 转成钉钉 markdown + 加签）：
+  #
+  #    docker run -d --name dingtalk-webhook -p 8060:8060 \
+  #      timonwong/prometheus-webhook-dingtalk:latest \
+  #      --ding.profile="tsukiyo=https://oapi.dingtalk.com/robot/send?access_token=<token>&secret=<SECxxxx>"
+  #
+  # 2) 然后在 receiver 里指向它：
+  #
+  #  - name: dingtalk
+  #    webhook_configs:
+  #      - url: "http://dingtalk-webhook:8060/dingtalk/tsukiyo/send"
+  #        send_resolved: true
+  #
+  # 3) 把上面 route.routes 的 receiver 改成 dingtalk。
+  #
+  # 只想用「网关内置引擎 + 钉钉」而不想部署 Prometheus 的话，直接配 config.json：
+  #   {"type":"dingtalk","url":"https://oapi.dingtalk.com/robot/send?access_token=...","secret":"SEC..."}
+  # 网关会自己完成 HmacSHA256 加签（见 docs/alerts.md「通知渠道」）。
+  #
+  # ── 换成 Slack ───────────────────────────────────────────────────────────
+  #  - name: slack
+  #    slack_configs:
+  #      - api_url: "https://hooks.slack.com/services/T000/B000/XXXX"
+  #        channel: "#tsukiyo-alerts"
+  #        send_resolved: true
+  #        title: "{{ .CommonLabels.alertname }}"
+  #        text: "{{ range .Alerts }}{{ .Annotations.summary }}\n{{ end }}"
+
+  # 邮件（需要 global.smtp_smarthost / smtp_from；这里留空示例）
+  # - name: email
+  #   email_configs:
+  #     - to: "oncall@example.com"
+  #       send_resolved: true
+
+inhibit_rules:
+  # 网关整个抓不到了（up=0）时，其它指标类告警没有意义，压掉噪音
+  - source_matchers:
+      - 'alertname="TsukiyoGatewayTargetDown"'
+    target_matchers:
+      - 'severity=~"warning|critical"'
+    equal: ["job"]
+
+  # 已经有一条 critical 时，同 alertname 的 warning 就不要再刷（例如熔断 + 错误率）
+  - source_matchers:
+      - 'severity="critical"'
+    target_matchers:
+      - 'severity="warning"'
+    equal: ["alertname"]

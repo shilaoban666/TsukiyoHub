@@ -14,6 +14,8 @@ import {
   MessageOutlined,
   BookOutlined,
   ThunderboltOutlined,
+  ApiOutlined,
+  AlertOutlined,
   SettingOutlined,
 } from '@ant-design/icons-vue'
 import { useAppStore } from '@/stores/app'
@@ -26,6 +28,8 @@ const NAV = [
   { name: 'chat', path: '/chat', label: '聊天', icon: MessageOutlined },
   { name: 'knowledge', path: '/knowledge', label: '知识库', icon: BookOutlined },
   { name: 'skills', path: '/skills', label: '技能', icon: ThunderboltOutlined },
+  { name: 'routing', path: '/routing', label: '路由网关', icon: ApiOutlined },
+  { name: 'alerts', path: '/alerts', label: '告警', icon: AlertOutlined },
   { name: 'settings', path: '/settings', label: '设置', icon: SettingOutlined },
 ]
 

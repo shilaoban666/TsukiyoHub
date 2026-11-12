@@ -321,7 +321,43 @@ Base URL: http://127.0.0.1:8080/api/v1
 
 ---
 
-## 7. TypeScript 类型（可直接抄进前端）
+## 7. 路由网关（代理到独立的 Go 网关）
+
+网关本身是独立服务（见 [`docs/gateway.md`](gateway.md)），本服务提供 `/api/gateway/*` 代理，
+方便前端只连一个后端。网关未启动时 `/api/gateway/health` 返回 `reachable:false`（HTTP 200），
+其它接口返回 503 + 可读原因。
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `GET` | `/api/gateway/health` | 连通性：`{enabled, reachable, admin_url, public_url, version?, latency_ms?}` |
+| `GET` | `/api/gateway/overview` | 概况：`model.Overview`（指标 / 供应商 / 熔断 / 告警） |
+| `GET` | `/api/gateway/stats?window=300&route=&model=&provider=` | 窗口统计 |
+| `GET` | `/api/gateway/config` | 网关配置（密钥已脱敏）+ `config_hash` |
+| `PUT` | `/api/gateway/config` | 保存并热更新（body 为完整配置，`****` 字段沿用旧值） |
+| `POST` | `/api/gateway/config/reload` | 从文件重新加载 |
+| `GET` | `/api/gateway/providers` | 供应商健康 → `{items, providers, total}` |
+| `POST` | `/api/gateway/providers/{name}/probe` | 主动探活 |
+| `GET` | `/api/gateway/routes` | 路由与可用策略 → `{items, routes, strategies, total}` |
+| `PUT` | `/api/gateway/routes` | 只替换路由并热更新 |
+| `GET` | `/api/gateway/traces?limit=&route=&model=&ok=&since=` | 请求追踪 → `{items, traces, count, total}` |
+| `GET` | `/api/gateway/traces/{id}` | 单条追踪（含 `attempt_log`） |
+| `GET` | `/api/gateway/alerts/overview` | 告警概况 |
+| `GET` | `/api/gateway/alerts/rules` | 告警规则 → `{enabled, items, rules, total}` |
+| `PUT` | `/api/gateway/alerts/rules` | 整体替换规则（热更新并持久化） |
+| `GET` | `/api/gateway/alerts/events?limit=&status=` | 告警事件 → `{enabled, items, events, total}` |
+| `POST` | `/api/gateway/alerts/{id}/ack` | 确认静默：`{by, minutes}` |
+| `GET` | `/api/gateway/metrics` | Prometheus 指标文本（`text/plain`） |
+
+`Overview` 里的 `metrics` 是窗口统计（requests / error_rate / rps / p50 / p95 / ttft_p95_ms /
+tokens / cost_usd / rate_limited / budget_rejects / inflight），`breakers` 是
+`{模型: closed|half_open|open}`。
+
+> 列表接口同时提供 `items`（统一）与 `traces`/`events`/`rules`/`providers`/`routes`（历史名）两个键，
+> 接入方按 `items` 读即可。
+
+---
+
+## 8. TypeScript 类型（可直接抄进前端）
 
 ```ts
 export interface Citation {

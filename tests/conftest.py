@@ -66,6 +66,7 @@ def _isolated_env():
     """在导入应用之前把环境变量钉死，避免读到开发者本地的 .env。"""
     os.environ.update({
         "TSUKIYO_DATA_ROOT": str(_DATA_DIR / "data"),
+        "TSUKIYO_LOGS_DIR": str(_DATA_DIR / "logs"),
         "APP_ENV": "test",
         "LOG_LEVEL": "WARNING",
         # 无外部依赖：演示模型 + 确定性向量 + 内存检索 + SQLite

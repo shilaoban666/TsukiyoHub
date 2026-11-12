@@ -9,13 +9,16 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
 // 按需注册用到的 Ant Design Vue 组件：全量 `app.use(Antd)` 会打进来 ~1.45MB JS，
-// 而工作台只用到下面这 13 个。新增组件时记得在这里补一行。
+// 而工作台只用到下面这些。新增组件时记得在这里补一行。
 import {
   Alert,
   Button,
   ConfigProvider,
+  Drawer,
+  Form,
   Input,
   InputNumber,
+  Modal,
   Popconfirm,
   Progress,
   Radio,
@@ -49,8 +52,11 @@ for (const plugin of [
   Alert,
   Button,
   ConfigProvider,
+  Drawer,
+  Form,
   Input,
   InputNumber,
+  Modal,
   Popconfirm,
   Progress,
   Radio,

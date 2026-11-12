@@ -1,0 +1,153 @@
+# TsukiyoHub 网关 —— Prometheus 告警规则
+#
+# 指标全部来自网关 /metrics（internal/metrics 手写 exposition），名字见
+# docs/design/gateway-contract.md「网关必须暴露的 Prometheus 指标名」：
+#
+#   tsukiyo_gateway_requests_total{route,model,provider,status}
+#   tsukiyo_gateway_request_duration_seconds_bucket{route,model,provider,le}
+#   tsukiyo_gateway_ttft_seconds_bucket{model}
+#   tsukiyo_gateway_tokens_total{model,direction}
+#   tsukiyo_gateway_cost_usd_total{model}
+#   tsukiyo_gateway_inflight
+#   tsukiyo_gateway_breaker_state{model}      # 0=closed 1=half_open 2=open
+#   tsukiyo_gateway_provider_up{provider}     # 1/0
+#   tsukiyo_gateway_ratelimit_rejected_total{client}
+#   tsukiyo_gateway_budget_rejected_total{client}
+#   tsukiyo_gateway_alerts_firing
+#
+# 改阈值的原则：先按「业务可接受」定 SLO，再看最近一周的实际分布；
+# 不要照抄这里的数字（示例值假设的是单机、低流量部署）。
+#
+# 校验语法（容器里自带 promtool）：
+#   docker run --rm -v ${PWD}:/cfg --entrypoint promtool prom/prometheus:latest \
+#     check rules /cfg/alerts.yml
+
+groups:
+  # 面向「用户已经受影响」的问题：错误率、延迟、熔断、上游不可用
+  - name: tsukiyo-gateway-availability
+    interval: 30s
+    rules:
+      - alert: TsukiyoGatewayErrorRateHigh
+        # 最近 5 分钟 5xx 占比 > 10%。clamp_min 防止 0 请求时除零得到 NaN。
+        expr: |
+          (
+            sum(rate(tsukiyo_gateway_requests_total{status=~"5.."}[5m]))
+            /
+            clamp_min(sum(rate(tsukiyo_gateway_requests_total[5m])), 1e-9)
+          ) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+          component: gateway
+          runbook: docs/alerts.md
+        annotations:
+          summary: "网关错误率超过 10%（当前 {{ $value | humanizePercentage }}）"
+          description: >-
+            最近 5 分钟上游 5xx 占比过高。先用 /admin/api/overview 看是哪个 provider 在报错，
+            再检查该供应商的 key/余额/网络；如果只是单模型问题，确认 fallback 是否生效。
+
+      - alert: TsukiyoGatewayP95LatencyHigh
+        # 直方图分位数：只按 le 聚合，避免 route/model 维度把桶拆散
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(tsukiyo_gateway_request_duration_seconds_bucket[5m]))
+          ) > 5
+        for: 5m
+        labels:
+          severity: warning
+          component: gateway
+          runbook: docs/alerts.md
+        annotations:
+          summary: "网关 P95 延迟超过 5s（当前 {{ $value | humanizeDuration }}）"
+          description: >-
+            整体延迟偏高。区分「上游慢」和「网关慢」：看 tsukiyo_gateway_ttft_seconds 是否同步变差；
+            SSE 长连接会天然拉高 P95，流式占比高时可适当放宽阈值。
+
+      - alert: TsukiyoGatewayBreakerOpen
+        # breaker_state=2 表示 open；统计处于熔断的模型个数
+        expr: count(tsukiyo_gateway_breaker_state == 2) > 0
+        for: 1m
+        labels:
+          severity: critical
+          component: gateway
+          runbook: docs/alerts.md
+        annotations:
+          summary: "有 {{ $value }} 个模型处于熔断状态"
+          description: >-
+            连续失败触发了熔断（breaker.failure_threshold），这些模型暂时不会被选中。
+            检查对应模型的上游可用性与错误类型；恢复需要等 open_seconds 到期。
+
+      - alert: TsukiyoGatewayProviderDown
+        # 逐 series 告警，$labels.provider 直接指出是谁挂了
+        expr: tsukiyo_gateway_provider_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: provider
+          runbook: docs/alerts.md
+        annotations:
+          summary: "供应商 {{ $labels.provider }} 探活失败"
+          description: >-
+            provider_up=0 表示最近一次探活（GET base_url + health_path）没返回 200。
+            检查 base_url、API Key、容器网络；此时请求会走其它候选或 fallback。
+
+      - alert: TsukiyoGatewayTargetDown
+        # 网关进程挂了 / 端口或 metrics_path 变了：up 是 Prometheus 自带的抓取结果
+        expr: up{job="tsukiyo-gateway"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: gateway
+          runbook: docs/alerts.md
+        annotations:
+          summary: "Prometheus 抓不到网关指标（up=0）"
+          description: >-
+            先确认网关进程是否活着（curl /healthz），再看 /metrics 端口与 prometheus.yml 的 targets 是否一致。
+
+  # 面向「成本 / 配额」的问题：限流、预算、费用异常增长
+  - name: tsukiyo-gateway-cost
+    interval: 60s
+    rules:
+      - alert: TsukiyoGatewayRateLimitedSpike
+        # 限流拒绝量：5 分钟内超过 20 次（≈4 次/分钟）
+        expr: sum(increase(tsukiyo_gateway_ratelimit_rejected_total[5m])) > 20
+        for: 5m
+        labels:
+          severity: warning
+          component: gateway
+          runbook: docs/alerts.md
+        annotations:
+          summary: "5 分钟内限流拒绝约 {{ $value | humanize }} 次"
+          description: >-
+            客户端 RPM/TPM 打满。确认是真实流量增长（该扩容/调 quota）还是单个 client 失控（该限死）。
+
+      - alert: TsukiyoGatewayBudgetRejected
+        # 任何一笔被预算拒绝的请求都值得看一眼（402）
+        expr: sum(increase(tsukiyo_gateway_budget_rejected_total[10m])) > 0
+        for: 5m
+        labels:
+          severity: critical
+          component: gateway
+          runbook: docs/alerts.md
+        annotations:
+          summary: "有请求因预算被拒（HTTP 402）"
+          description: >-
+            客户端的 monthly_usd 用完了。要么调预算，要么通知调用方；先从
+            /admin/api/overview 的 metrics.cost_usd 确认消费节奏。
+
+      - alert: TsukiyoGatewayCostSpike
+        # 费用突增：最近 15 分钟花费 > 之前 3 小时「平均每 15 分钟」的 3 倍
+        expr: |
+          sum(increase(tsukiyo_gateway_cost_usd_total[15m]))
+          >
+          3 * sum(increase(tsukiyo_gateway_cost_usd_total[3h] offset 15m)) / 12
+        for: 15m
+        labels:
+          severity: warning
+          component: cost
+          runbook: docs/alerts.md
+        annotations:
+          summary: "网关费用突增（最近 15 分钟约 ${{ $value | humanize }}，是历史均值的 3 倍以上）"
+          description: >-
+            费用异常：检查是否有客户端在跑大 prompt / 长输出、是否有模型价格配置写错
+            （models[].input_price / output_price 是「每 1K tokens 美元」）。

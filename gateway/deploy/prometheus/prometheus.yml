@@ -1,0 +1,53 @@
+# TsukiyoHub 网关 —— Prometheus 采集配置
+#
+# 与内置告警引擎的关系：
+#   * 内置引擎（internal/alert）是「网关自己就会告警」，零依赖、开箱即用；
+#   * 本文件是「外部 Prometheus + Alertmanager」链路，负责长期留存、跨服务聚合、
+#     以及团队既有的告警处置流程（值班表、抑制、静默）。
+#   两条链路可以同时开启，规则各自独立（内置规则写在 config.json 的 alerts.rules）。
+#
+# 启动（和网关一起放在同一个 docker network 里）：
+#   docker run -d --name prometheus \
+#     -v ${PWD}/gateway/deploy/prometheus:/etc/prometheus:ro \
+#     -p 9090:9090 prom/prometheus:latest
+#
+# 本机直接跑网关时改这里：
+#   * Prometheus 也在宿主机 → targets: ["127.0.0.1:8081"]
+#   * Prometheus 在容器、网关在宿主机 → targets: ["host.docker.internal:8081"]
+#     （Docker Desktop 自带该域名；Linux 需给容器加 extra_hosts: host-gateway）
+#   * 网关把 /metrics 挂在管理端口（admin_listen，默认 :8082）时改 8082
+
+global:
+  scrape_interval: 30s      # 与网关内置的 15s 评估间隔错开，避免互相放大抖动
+  scrape_timeout: 10s
+  evaluation_interval: 30s
+  external_labels:
+    cluster: local
+    gateway: tsukiyo-gateway
+
+# 告警规则文件（相对本文件所在目录解析）
+rule_files:
+  - alerts.yml
+
+# 告警投递到 Alertmanager；想只采集不告警就整段注释掉
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]   # 本机跑改成 127.0.0.1:9093
+      timeout: 10s
+
+scrape_configs:
+  # 网关本体：/metrics 是手写的 Prometheus 文本格式（零第三方依赖）
+  - job_name: tsukiyo-gateway
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets: ["gateway:8081"]
+        labels:
+          service: tsukiyo-gateway
+          env: local
+
+  # 可选：Prometheus 自己，便于排查「抓不到网关」是网络问题还是网关问题
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

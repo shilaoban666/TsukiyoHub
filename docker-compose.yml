@@ -22,6 +22,10 @@ services:
       DATABASE_URL: postgresql+psycopg://tsukiyo:tsukiyo@postgres:5432/tsukiyohub
       VECTOR_BACKEND: milvus
       MILVUS_URI: http://milvus:19530
+      # 聊天模型走路由网关（网关再分发到各供应商）
+      GATEWAY_ENABLED: "true"
+      GATEWAY_ADMIN_URL: http://gateway:8082
+      GATEWAY_PUBLIC_URL: http://gateway:8081
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
@@ -30,6 +34,60 @@ services:
         condition: service_healthy
       milvus:
         condition: service_healthy
+
+  # ---------------------------------------------------------------- 路由网关
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    container_name: tsukiyohub-gateway
+    restart: unless-stopped
+    ports:
+      - "8081:8081"   # OpenAI 兼容入口
+      - "8082:8082"   # 管理接口 + /metrics
+    environment:
+      # 密钥从 .env 注入（config.json 里用 ${ENV} 引用）
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      GATEWAY_ADMIN_TOKEN: ${GATEWAY_ADMIN_TOKEN:-}
+      GATEWAY_CLIENT_KEY: ${GATEWAY_CLIENT_KEY:-sk-demo-local}
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+      DINGTALK_ROBOT_WEBHOOK: ${DINGTALK_ROBOT_WEBHOOK:-}
+      DINGTALK_ROBOT_SECRET: ${DINGTALK_ROBOT_SECRET:-}
+    volumes:
+      - ./gateway/config.json:/app/config.json:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8082/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ------------------------------------------------- Prometheus（可选，profile=monitor）
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: tsukiyohub-prometheus
+    restart: unless-stopped
+    profiles: ["monitor"]
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./gateway/deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./gateway/deploy/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: tsukiyohub-alertmanager
+    restart: unless-stopped
+    profiles: ["monitor"]
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./gateway/deploy/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
 
   postgres:
     image: postgres:16-alpine
@@ -101,3 +159,4 @@ volumes:
   etcd_data:
   minio_data:
   milvus_data:
+  prometheus_data:

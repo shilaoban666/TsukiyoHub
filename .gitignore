@@ -25,6 +25,13 @@ dist/
 dist-preview/
 *.tsbuildinfo
 
+# Go / 网关构建产物与本地配置
+gateway/bin/
+gateway/config.json
+gateway/.gocache/
+gateway/.gotmp/
+*.exe
+
 # OS / 编辑器
 .DS_Store
 Thumbs.db

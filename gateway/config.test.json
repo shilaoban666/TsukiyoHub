@@ -1,0 +1,183 @@
+{
+  "listen": ":18081",
+  "admin_listen": ":18082",
+  "admin_token": "",
+  "public_url": "http://127.0.0.1:18081",
+  "default_route": "chat",
+  "max_attempts": 3,
+  "concurrency": 64,
+
+  "clients": [
+    {
+      "key": "sk-demo-local",
+      "name": "demo",
+      "enabled": true,
+      "routes": [],
+      "rpm": 100,
+      "tpm": 0,
+      "monthly_usd": 0
+    },
+    {
+      "key": "sk-limited",
+      "name": "limited",
+      "enabled": true,
+      "routes": ["chat", "fast"],
+      "rpm": 3,
+      "tpm": 0,
+      "monthly_usd": 0
+    },
+    {
+      "key": "sk-budget",
+      "name": "poor",
+      "enabled": true,
+      "routes": ["chat", "fast"],
+      "rpm": 0,
+      "tpm": 0,
+      "monthly_usd": 0.000001
+    }
+  ],
+
+  "providers": [
+    {
+      "name": "mock",
+      "type": "custom",
+      "base_url": "http://127.0.0.1:18080/v1",
+      "api_key": "sk-mock",
+      "timeout_ms": 15000,
+      "enabled": true,
+      "stream_usage": true
+    }
+  ],
+
+  "models": [
+    {
+      "id": "mock-chat",
+      "provider": "mock",
+      "upstream": "mock-chat",
+      "context": 32000,
+      "supports_tools": true,
+      "input_price": 0.001,
+      "output_price": 0.002,
+      "tags": ["test"]
+    },
+    {
+      "id": "mock-fail",
+      "provider": "mock",
+      "upstream": "mock-fail",
+      "context": 32000,
+      "input_price": 0,
+      "output_price": 0
+    },
+    {
+      "id": "mock-slow",
+      "provider": "mock",
+      "upstream": "mock-slow",
+      "context": 32000,
+      "input_price": 0,
+      "output_price": 0
+    }
+  ],
+
+  "routes": [
+    {
+      "alias": "chat",
+      "strategy": "priority",
+      "targets": [
+        { "model": "mock-chat", "priority": 1 }
+      ],
+      "enabled": true
+    },
+    {
+      "alias": "failover",
+      "strategy": "priority",
+      "targets": [
+        { "model": "mock-fail", "priority": 1 },
+        { "model": "mock-chat", "priority": 2 }
+      ],
+      "enabled": true
+    },
+    {
+      "alias": "fast",
+      "strategy": "least_latency",
+      "targets": [
+        { "model": "mock-chat" },
+        { "model": "mock-fail" }
+      ],
+      "enabled": true
+    }
+  ],
+
+  "breaker": {
+    "enabled": true,
+    "failure_threshold": 2,
+    "open_seconds": 5,
+    "half_open_max": 1,
+    "error_rate_threshold": 0.9,
+    "window_seconds": 30
+  },
+
+  "budget": {
+    "enabled": true,
+    "window_days": 30,
+    "reject_on_over": true
+  },
+
+  "tracing": {
+    "enabled": true,
+    "max_records": 500
+  },
+
+  "timeouts": {
+    "connect_ms": 3000,
+    "header_ms": 20000,
+    "total_ms": 0
+  },
+
+  "alerts": {
+    "enabled": true,
+    "interval_ms": 1500,
+    "default_cooldown_seconds": 30,
+    "notifiers": [
+      {
+        "type": "log",
+        "name": "console",
+        "enabled": true,
+        "min_severity": "info"
+      },
+      {
+        "type": "webhook",
+        "name": "sink",
+        "url": "http://127.0.0.1:18080/sink",
+        "enabled": true,
+        "min_severity": "info",
+        "headers": { "Content-Type": "application/json" }
+      }
+    ],
+    "rules": [
+      {
+        "id": "requests_seen",
+        "name": "有请求进来",
+        "metric": "requests",
+        "op": ">",
+        "threshold": 0,
+        "window": "1m",
+        "for": "0s",
+        "severity": "critical",
+        "message": "网关最近 1 分钟收到请求（用于验证告警链路）",
+        "enabled": true
+      },
+      {
+        "id": "error_rate_any",
+        "name": "出现错误",
+        "metric": "error_count",
+        "op": ">",
+        "threshold": 0,
+        "window": "1m",
+        "for": "0s",
+        "severity": "warning",
+        "message": "最近 1 分钟有请求失败",
+        "enabled": true
+      }
+    ]
+  }
+}

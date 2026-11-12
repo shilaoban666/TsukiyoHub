@@ -1,7 +1,8 @@
 /**
- * 路由表：4 条扁平路由，没有权限系统。
+ * 路由表：6 条扁平路由，没有权限系统。
  *
  * `/chat/:sessionId?` 用可选参数表示「当前选中的会话」，这样刷新页面 / 分享链接都能回到同一个会话。
+ * `/routing`（路由网关）与 `/alerts`（告警）是网关管理页，数据来自 `/api/gateway/*`。
  */
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 
@@ -24,6 +25,18 @@ const routes: RouteRecordRaw[] = [
     name: 'skills',
     component: () => import('@/views/SkillsView.vue'),
     meta: { title: '技能' },
+  },
+  {
+    path: '/routing',
+    name: 'routing',
+    component: () => import('@/views/RoutingView.vue'),
+    meta: { title: '路由网关' },
+  },
+  {
+    path: '/alerts',
+    name: 'alerts',
+    component: () => import('@/views/AlertsView.vue'),
+    meta: { title: '告警' },
   },
   {
     path: '/settings',

@@ -54,6 +54,11 @@ class Settings(BaseSettings):
         default=PROJECT_ROOT / "data",
         validation_alias=AliasChoices("TSUKIYO_DATA_ROOT", "DATA_ROOT"),
     )
+    #: 日志目录：默认项目根 logs/；容器里可挂载到 /var/log/tsukiyohub
+    logs_root: str = Field(
+        default="",
+        validation_alias=AliasChoices("TSUKIYO_LOGS_DIR", "LOGS_DIR"),
+    )
 
     #: 对外 API 鉴权：留空 = 不鉴权（本地开发 / 内网）；填了则要求 ``Authorization: Bearer <key>``
     api_key: SecretStr | None = None
@@ -183,7 +188,19 @@ class Settings(BaseSettings):
     web_fetch_max_chars: int = 8000
     web_fetch_timeout_seconds: float = 15.0
 
-    # ---------------------------------------------------------------- 记忆
+    # -------------------------------------------------------------- 路由网关
+    #: 是否启用「路由网关」管理接口（网关本身是独立的 Go 服务，见 gateway/）
+    gateway_enabled: bool = True
+    #: 路由网关管理接口地址（Go 服务的 admin_listen）
+    gateway_admin_url: str = "http://127.0.0.1:8082"
+    #: 路由网关对外的 OpenAI 兼容地址（前端/接入方直连它，或经本服务转发）
+    gateway_public_url: str = "http://127.0.0.1:8081"
+    #: 网关管理接口令牌；Go 网关配置了 admin_token 时这里要填一样的
+    gateway_admin_token: SecretStr | None = None
+    #: 访问网关管理接口的超时（秒）
+    gateway_timeout_seconds: float = 10.0
+
+    # -------------------------------------------------------------- 记忆
     memory_enabled: bool = True
     #: 每个用户最多保留的事实条数
     memory_max_facts: int = 50
@@ -257,7 +274,8 @@ class Settings(BaseSettings):
 
     @property
     def logs_dir(self) -> Path:
-        return PROJECT_ROOT / "logs"
+        """日志目录（默认项目根 logs/；只读文件系统时可用 LOGS_DIR 改到可写位置）。"""
+        return Path(self.logs_root) if self.logs_root.strip() else PROJECT_ROOT / "logs"
 
     @property
     def resolved_database_url(self) -> str:
@@ -295,9 +313,18 @@ class Settings(BaseSettings):
         return self.app_env in ("staging", "prod")
 
     def ensure_dirs(self) -> None:
-        """创建运行期必需目录（幂等）。"""
+        """创建运行期必需目录（幂等）。
+
+        只读文件系统 / 受限沙箱里 ``logs/`` 可能建不出来——那只是少一份文件日志，
+        不能因此让服务起不来，所以逐个目录容错。
+        """
         for directory in (self.data_dir, self.knowledge_dir, self.index_dir, self.upload_dir, self.logs_dir):
-            directory.mkdir(parents=True, exist_ok=True)
+            try:
+                directory.mkdir(parents=True, exist_ok=True)
+            except OSError:
+                if directory == self.logs_dir:
+                    continue   # 日志目录不可写：控制台日志仍然可用
+                raise
 
     @staticmethod
     def _secret(value: SecretStr | None) -> str:

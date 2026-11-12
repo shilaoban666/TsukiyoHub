@@ -1,0 +1,388 @@
+{
+  "$comment": [
+    "TsukiyoHub LLM 路由网关示例配置。变量写法 ${ENV} 会在加载时从环境变量注入。",
+    "listen        = 客户端入口（OpenAI 兼容，含 SSE）",
+    "admin_listen  = 管理接口（给 TsukiyoHub 的 /api/gateway/* 代理用）",
+    "providers     = 任何 OpenAI 兼容上游；models 里声明能力与价格；routes 决定「客户端 model 字段」怎么选路",
+    "routes[].strategy 支持：priority / weighted / round_robin / least_latency / cost / canary / sticky / capability",
+    "加一个新供应商 = providers + models 各加一条，再挂进某个 route，无需改代码"
+  ],
+  "listen": ":8081",
+  "admin_listen": ":8082",
+  "admin_token": "${GATEWAY_ADMIN_TOKEN}",
+  "public_url": "http://127.0.0.1:8081",
+  "default_route": "chat",
+  "max_attempts": 3,
+  "concurrency": 256,
+
+  "clients": [
+    {
+      "key": "${GATEWAY_CLIENT_KEY}",
+      "name": "tsukiyohub",
+      "enabled": true,
+      "routes": [],
+      "rpm": 600,
+      "tpm": 400000,
+      "monthly_usd": 50
+    },
+    {
+      "key": "sk-demo-local",
+      "name": "demo",
+      "enabled": true,
+      "routes": ["chat", "fast", "smart"],
+      "rpm": 60,
+      "tpm": 40000,
+      "monthly_usd": 5
+    }
+  ],
+
+  "providers": [
+    {
+      "name": "openai",
+      "type": "openai",
+      "base_url": "https://api.openai.com/v1",
+      "api_key": "${OPENAI_API_KEY}",
+      "timeout_ms": 60000,
+      "health_path": "/models",
+      "enabled": true,
+      "stream_usage": true
+    },
+    {
+      "name": "deepseek",
+      "type": "openai",
+      "base_url": "https://api.deepseek.com/v1",
+      "api_key": "${DEEPSEEK_API_KEY}",
+      "timeout_ms": 60000,
+      "enabled": true,
+      "stream_usage": true
+    },
+    {
+      "name": "dashscope",
+      "type": "openai",
+      "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "api_key": "${DASHSCOPE_API_KEY}",
+      "timeout_ms": 60000,
+      "enabled": true,
+      "stream_usage": true
+    },
+    {
+      "name": "ollama",
+      "type": "ollama",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "api_key": "ollama",
+      "timeout_ms": 120000,
+      "health_path": "/models",
+      "enabled": false,
+      "stream_usage": false
+    },
+    {
+      "name": "mock",
+      "type": "custom",
+      "base_url": "http://127.0.0.1:18080/v1",
+      "api_key": "sk-mock",
+      "timeout_ms": 30000,
+      "enabled": false,
+      "stream_usage": true
+    }
+  ],
+
+  "models": [
+    {
+      "id": "gpt-4o-mini",
+      "provider": "openai",
+      "upstream": "gpt-4o-mini",
+      "context": 128000,
+      "supports_tools": true,
+      "supports_vision": true,
+      "input_price": 0.15,
+      "output_price": 0.6,
+      "tags": ["cloud", "cheap", "tools"]
+    },
+    {
+      "id": "gpt-4o",
+      "provider": "openai",
+      "upstream": "gpt-4o",
+      "context": 128000,
+      "supports_tools": true,
+      "supports_vision": true,
+      "input_price": 2.5,
+      "output_price": 10,
+      "tags": ["cloud", "smart"]
+    },
+    {
+      "id": "deepseek-chat",
+      "provider": "deepseek",
+      "upstream": "deepseek-chat",
+      "context": 64000,
+      "supports_tools": true,
+      "input_price": 0.27,
+      "output_price": 1.1,
+      "tags": ["cloud", "cheap"]
+    },
+    {
+      "id": "qwen-plus",
+      "provider": "dashscope",
+      "upstream": "qwen-plus",
+      "context": 131072,
+      "supports_tools": true,
+      "input_price": 0.4,
+      "output_price": 1.2,
+      "tags": ["cloud"]
+    },
+    {
+      "id": "qwen2.5-7b-local",
+      "provider": "ollama",
+      "upstream": "qwen2.5:7b",
+      "context": 32000,
+      "input_price": 0,
+      "output_price": 0,
+      "tags": ["local", "free"]
+    },
+    {
+      "id": "mock-chat",
+      "provider": "mock",
+      "upstream": "mock-chat",
+      "context": 32000,
+      "supports_tools": true,
+      "input_price": 0,
+      "output_price": 0,
+      "tags": ["test"]
+    }
+  ],
+
+  "routes": [
+    {
+      "alias": "chat",
+      "strategy": "priority",
+      "targets": [
+        { "model": "gpt-4o-mini", "priority": 1 },
+        { "model": "deepseek-chat", "priority": 2 },
+        { "model": "qwen-plus", "priority": 3 }
+      ],
+      "fallbacks": ["qwen2.5-7b-local"],
+      "enabled": true
+    },
+    {
+      "alias": "fast",
+      "strategy": "least_latency",
+      "targets": [
+        { "model": "gpt-4o-mini" },
+        { "model": "deepseek-chat" },
+        { "model": "qwen-plus" }
+      ],
+      "enabled": true
+    },
+    {
+      "alias": "smart",
+      "strategy": "capability",
+      "required_capabilities": ["tools", "context:64000"],
+      "targets": [
+        { "model": "gpt-4o" },
+        { "model": "qwen-plus" }
+      ],
+      "fallbacks": ["gpt-4o-mini"],
+      "enabled": true
+    },
+    {
+      "alias": "cheap",
+      "strategy": "cost",
+      "targets": [
+        { "model": "qwen2.5-7b-local" },
+        { "model": "deepseek-chat" },
+        { "model": "gpt-4o-mini" }
+      ],
+      "enabled": true
+    },
+    {
+      "alias": "mock-chat",
+      "strategy": "priority",
+      "targets": [
+        { "model": "mock-chat", "priority": 1 }
+      ],
+      "enabled": true
+    },
+    {
+      "alias": "canary-gpt4o",
+      "strategy": "canary",
+      "options": { "percent": 10 },
+      "targets": [
+        { "model": "gpt-4o" },
+        { "model": "gpt-4o-mini" }
+      ],
+      "enabled": true
+    },
+    {
+      "alias": "sticky-chat",
+      "strategy": "sticky",
+      "targets": [
+        { "model": "gpt-4o-mini" },
+        { "model": "deepseek-chat" },
+        { "model": "qwen-plus" }
+      ],
+      "enabled": true
+    },
+    {
+      "alias": "balanced",
+      "strategy": "weighted",
+      "options": { "seed": "gateway" },
+      "targets": [
+        { "model": "gpt-4o-mini", "weight": 60 },
+        { "model": "deepseek-chat", "weight": 30 },
+        { "model": "qwen-plus", "weight": 10 }
+      ],
+      "enabled": true
+    },
+    {
+      "alias": "rr",
+      "strategy": "round_robin",
+      "targets": [
+        { "model": "gpt-4o-mini" },
+        { "model": "deepseek-chat" },
+        { "model": "qwen-plus" }
+      ],
+      "enabled": true
+    }
+  ],
+
+  "breaker": {
+    "enabled": true,
+    "failure_threshold": 5,
+    "open_seconds": 30,
+    "half_open_max": 2,
+    "error_rate_threshold": 0.5,
+    "window_seconds": 60
+  },
+
+  "budget": {
+    "enabled": true,
+    "window_days": 30,
+    "reject_on_over": true
+  },
+
+  "tracing": {
+    "enabled": true,
+    "max_records": 2000
+  },
+
+  "timeouts": {
+    "connect_ms": 5000,
+    "header_ms": 60000,
+    "total_ms": 0
+  },
+
+  "alerts": {
+    "enabled": true,
+    "interval_ms": 15000,
+    "default_cooldown_seconds": 300,
+    "notifiers": [
+      {
+        "type": "log",
+        "name": "console",
+        "enabled": true,
+        "min_severity": "warning"
+      },
+      {
+        "type": "webhook",
+        "name": "ops-webhook",
+        "url": "${ALERT_WEBHOOK_URL}",
+        "enabled": false,
+        "min_severity": "warning",
+        "headers": { "Content-Type": "application/json" }
+      },
+      {
+        "type": "dingtalk",
+        "name": "dingtalk",
+        "url": "${DINGTALK_ROBOT_WEBHOOK}",
+        "secret": "${DINGTALK_ROBOT_SECRET}",
+        "enabled": false,
+        "min_severity": "critical"
+      }
+    ],
+    "rules": [
+      {
+        "id": "error_rate_high",
+        "name": "错误率过高",
+        "metric": "error_rate",
+        "op": ">",
+        "threshold": 0.1,
+        "window": "1m",
+        "for": "1m",
+        "severity": "critical",
+        "message": "最近 1 分钟错误率超过 10%，请检查上游供应商与网关日志",
+        "enabled": true
+      },
+      {
+        "id": "latency_p95_high",
+        "name": "P95 延迟过高",
+        "metric": "p95_latency_ms",
+        "op": ">",
+        "threshold": 5000,
+        "window": "2m",
+        "for": "2m",
+        "severity": "warning",
+        "message": "最近 2 分钟 P95 延迟超过 5s，可能是上游变慢或网络抖动",
+        "enabled": true
+      },
+      {
+        "id": "ttft_slow",
+        "name": "首字延迟过高",
+        "metric": "ttft_ms",
+        "op": ">",
+        "threshold": 8000,
+        "window": "2m",
+        "for": "2m",
+        "severity": "warning",
+        "message": "流式首字延迟 P95 超过 8s，用户会明显感觉卡顿",
+        "enabled": true
+      },
+      {
+        "id": "breaker_open",
+        "name": "熔断器打开",
+        "metric": "breaker_open",
+        "op": ">",
+        "threshold": 0,
+        "window": "30s",
+        "for": "30s",
+        "severity": "critical",
+        "message": "有模型被熔断，流量已自动切换；请确认上游是否故障",
+        "enabled": true
+      },
+      {
+        "id": "provider_down",
+        "name": "供应商不可用",
+        "metric": "provider_down",
+        "op": ">",
+        "threshold": 0,
+        "window": "1m",
+        "for": "1m",
+        "severity": "critical",
+        "message": "存在探活失败的供应商，相关模型将无法使用",
+        "enabled": true
+      },
+      {
+        "id": "budget_rejected",
+        "name": "预算被拒",
+        "metric": "budget_rejected",
+        "op": ">",
+        "threshold": 0,
+        "window": "1m",
+        "for": "1m",
+        "severity": "critical",
+        "message": "有调用方因预算用尽被拒绝，请调整预算或充值",
+        "enabled": true
+      },
+      {
+        "id": "rate_limited_spike",
+        "name": "限流激增",
+        "metric": "rate_limited",
+        "op": ">",
+        "threshold": 20,
+        "window": "1m",
+        "for": "1m",
+        "severity": "warning",
+        "message": "最近 1 分钟限流次数超过 20，调用方可能需要提高配额",
+        "enabled": true
+      }
+    ]
+  }
+}

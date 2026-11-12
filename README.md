@@ -149,6 +149,29 @@ class WeatherSkill(BaseSkill):
 
 ---
 
+### 🚦 路由网关 + 告警（`gateway/`，Go）
+
+放在所有 LLM 上游前面的一层 OpenAI 兼容网关（零第三方依赖，单二进制）：
+
+- **可插拔选路**：`priority` 主备降级 / `weighted` 加权 / `round_robin` / `least_latency` /
+  `cost` / `canary` 灰度 / `sticky` 会话粘性 / `capability` 能力匹配 —— 加策略只加一个文件；
+- **可靠性与成本**：多上游自动降级、熔断（连续失败/错误率）、超时、RPM/TPM 限流、月预算、成本核算；
+- **可观测**：Prometheus `/metrics`（请求/延迟/TTFT/token/成本/熔断/供应商健康）+ 请求追踪；
+- **告警**：内置规则引擎（pending→firing→resolved、冷却、Ack 静默）+ 通知渠道
+  （log / webhook / 钉钉 / Slack），同时提供 `deploy/prometheus` + `deploy/alertmanager` 外部告警配置；
+- **零改代码接入新供应商**：`config.json` 加 provider + model + 挂到 route 即可，热更新不重启。
+
+```
+你的前端 / TsukiyoHub  ──OpenAI 兼容──▶  tsukiyo-gateway  ──▶  OpenAI / DeepSeek / Qwen / Ollama / vLLM / 中转站
+                                          │
+                                          ├─ /metrics（Prometheus）
+                                          └─ /admin/api/*（TsukiyoHub 的「路由网关」「告警」页面代理）
+```
+
+详见 [`docs/gateway.md`](docs/gateway.md)。
+
+---
+
 ## 任何前端怎么接
 
 ### 1. 最省事：OpenAI 兼容协议
@@ -265,6 +288,9 @@ python scripts\smoke.py --base http://127.0.0.1:8080
 
 # 一键自检（编译 + 单测 + 可选启动冒烟）
 .\scripts\check.ps1 -Smoke
+
+# 路由网关：编译 + vet + 单测（-Smoke 会起假上游跑端到端：路由/降级/熔断/限流/告警/热更新）
+.\scripts\gateway_check.ps1 -Smoke
 ```
 
 ---
@@ -279,7 +305,10 @@ python scripts\smoke.py --base http://127.0.0.1:8080
 | [`docs/rag.md`](docs/rag.md) | 检索内核：入库、切块、融合、阈值标定、换后端 |
 | [`docs/skills.md`](docs/skills.md) | 技能系统：Tool/SKILL.md/MCP、如何写一个技能 |
 | [`docs/memory.md`](docs/memory.md) | 记忆：抽取、召回、禁记、清空 |
+| [`docs/gateway.md`](docs/gateway.md) | 路由网关与告警：配置、策略、指标、扩展点 |
+| [`gateway/docs/alerts.md`](gateway/docs/alerts.md) | 告警规则/渠道与 Prometheus、Alertmanager 部署 |
 | [`docs/web.md`](docs/web.md) | 参考前端：结构、SSE 解析、主题、对接自己的后端 |
+| [`docs/web-gateway.md`](docs/web-gateway.md) | 前端「路由网关 / 告警」页面说明与接口对应 |
 | [`docs/extraction.md`](docs/extraction.md) | 从原项目抽取的逐文件对照与踩坑记录 |
 | [`docs/design/`](docs/design/) | 抽取期的侦察与契约文档（历史资料） |
 
