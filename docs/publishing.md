@@ -1,6 +1,9 @@
 # Publishing checklist (GitHub)
 
 Everything that still says `YOUR_NAME`, plus the release, demo-media and repository-splitting steps.
+
+> **This repository**: `shilaoban666/TsukiyoHub` — the placeholder was already replaced in both READMEs;
+> keep this file as a checklist for future renames / forks.
 Run through this once before the repository goes public.
 
 ## 1. Replace placeholders
@@ -9,10 +12,10 @@ Run through this once before the repository goes public.
 
 ```bash
 # macOS / Linux
-sed -i.bak 's/YOUR_NAME/<your-github-handle>/g' README.en.md && rm README.en.md.bak
+sed -i.bak 's/YOUR_NAME/shilaoban666/g' README.en.md && rm README.en.md.bak
 
 # Windows PowerShell
-(Get-Content README.en.md -Raw) -replace 'YOUR_NAME','<your-github-handle>' |
+(Get-Content README.en.md -Raw) -replace 'YOUR_NAME','shilaoban666' |
   Set-Content README.en.md -NoNewline -Encoding utf8
 ```
 

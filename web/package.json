@@ -3,7 +3,15 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "TsukiyoHub 通用聊天工作台（聊天 + 技能 + 知识库）参考前端",
+  "description": "TsukiyoHub 通用聊天工作台（聊天 + 技能 + 知识库 + 路由网关 + 告警）参考前端",
+  "homepage": "https://github.com/shilaoban666/TsukiyoHub",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shilaoban666/TsukiyoHub.git",
+    "directory": "web"
+  },
+  "author": "shilaoban666",
+  "license": "MIT",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",

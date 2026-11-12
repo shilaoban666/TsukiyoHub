@@ -6,13 +6,15 @@
 
 `OpenAI-compatible` · `SSE streaming` · `hybrid retrieval` · `skills & MCP` · `Go gateway` · `Prometheus & Grafana`
 
-[![CI](https://github.com/YOUR_NAME/TsukiyoHub/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_NAME/TsukiyoHub/actions/workflows/ci.yml)
+[![CI](https://github.com/shilaoban666/TsukiyoHub/actions/workflows/ci.yml/badge.svg)](https://github.com/shilaoban666/TsukiyoHub/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](pyproject.toml)
 [![Go](https://img.shields.io/badge/go-1.22%2B-00ADD8?logo=go&logoColor=white)](gateway/go.mod)
 [![Node](https://img.shields.io/badge/node-20-339933?logo=nodedotjs&logoColor=white)](web/package.json)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Prometheus](https://img.shields.io/badge/metrics-Prometheus-E6522C?logo=prometheus&logoColor=white)](docs/observability.md)
 [![Grafana](https://img.shields.io/badge/dashboards-Grafana-F46800?logo=grafana&logoColor=white)](gateway/deploy/grafana/dashboard.json)
+[![GitHub stars](https://img.shields.io/github/stars/shilaoban666/TsukiyoHub?style=flat)](https://github.com/shilaoban666/TsukiyoHub/stargazers)
+[![Issues](https://img.shields.io/github/issues/shilaoban666/TsukiyoHub)](https://github.com/shilaoban666/TsukiyoHub/issues)
 
 ![Demo](docs/assets/demo.gif)
 
@@ -405,6 +407,7 @@ Source size (measured, excluding dependencies and build output): **≈15 k lines
 | [`docs/publishing.md`](docs/publishing.md) | GitHub publishing checklist (badges, topics, release, split repos) |
 | [`docs/extraction.md`](docs/extraction.md) | per-file provenance from the original business project |
 | [`docs/design/`](docs/design/) | contracts and reconnaissance notes written during the extraction |
+| [`CHANGELOG.md`](CHANGELOG.md) · [`SECURITY.md`](SECURITY.md) | release notes · vulnerability reporting and self-hosting security notes |
 
 ## License
 

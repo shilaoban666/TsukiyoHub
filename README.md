@@ -11,13 +11,15 @@
 
 `FastAPI` · `OpenAI 兼容` · `SSE 流式` · `混合检索 (向量 + BM25 + RRF)` · `防幻觉三道关` · `Skills / MCP` · `Vue 3 工作台`
 
-[![CI](https://github.com/YOUR_NAME/TsukiyoHub/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_NAME/TsukiyoHub/actions/workflows/ci.yml)
+[![CI](https://github.com/shilaoban666/TsukiyoHub/actions/workflows/ci.yml/badge.svg)](https://github.com/shilaoban666/TsukiyoHub/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](pyproject.toml)
 [![Go](https://img.shields.io/badge/go-1.22%2B-00ADD8?logo=go&logoColor=white)](gateway/go.mod)
 [![Node](https://img.shields.io/badge/node-20-339933?logo=nodedotjs&logoColor=white)](web/package.json)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Prometheus](https://img.shields.io/badge/metrics-Prometheus-E6522C?logo=prometheus&logoColor=white)](docs/observability.md)
 [![Grafana](https://img.shields.io/badge/dashboards-Grafana-F46800?logo=grafana&logoColor=white)](gateway/deploy/grafana/dashboard.json)
+[![GitHub stars](https://img.shields.io/github/stars/shilaoban666/TsukiyoHub?style=flat)](https://github.com/shilaoban666/TsukiyoHub/stargazers)
+[![Issues](https://img.shields.io/github/issues/shilaoban666/TsukiyoHub)](https://github.com/shilaoban666/TsukiyoHub/issues)
 
 ![Demo](docs/assets/demo.gif)
 
@@ -356,6 +358,7 @@ python scripts\smoke.py --base http://127.0.0.1:8080
 | [`docs/web-gateway.md`](docs/web-gateway.md) | 前端「路由网关 / 告警」页面说明与接口对应 |
 | [`docs/demo.md`](docs/demo.md) | 演示 GIF/截图怎么录（脚本化、可重录） |
 | [`docs/publishing.md`](docs/publishing.md) | GitHub 发布清单：badge、About/topics、tag/release、拆子仓 |
+| [`CHANGELOG.md`](CHANGELOG.md) · [`SECURITY.md`](SECURITY.md) · [`CONTRIBUTING`](.github/PULL_REQUEST_TEMPLATE.md) | 版本记录 / 安全策略 / 贡献流程 |
 | [`docs/extraction.md`](docs/extraction.md) | 从原项目抽取的逐文件对照与踩坑记录 |
 | [`docs/design/`](docs/design/) | 抽取期的侦察与契约文档（历史资料） |
 

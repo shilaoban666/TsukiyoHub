@@ -9,8 +9,15 @@ description = "TsukiyoHub —— 与业务无关的「聊天 + 技能 + RAG」�
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-authors = [{ name = "TsukiyoHub" }]
+authors = [{ name = "shilaoban666" }]
 keywords = ["rag", "chat", "agent", "skills", "mcp", "fastapi", "llm"]
+
+[project.urls]
+Homepage = "https://github.com/shilaoban666/TsukiyoHub"
+Repository = "https://github.com/shilaoban666/TsukiyoHub"
+Issues = "https://github.com/shilaoban666/TsukiyoHub/issues"
+Changelog = "https://github.com/shilaoban666/TsukiyoHub/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/shilaoban666/TsukiyoHub/blob/main/docs/architecture.md"
 
 dependencies = [
     # Web

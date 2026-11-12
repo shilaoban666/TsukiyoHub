@@ -1,0 +1,23 @@
+# 统一换行与 diff 行为：仓库内文本一律 LF，Windows 检出也不产生噪音 diff
+* text=auto eol=lf
+
+# 二进制素材不要让 git 尝试 diff / 合并
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+
+# 生成物：折叠 diff、GitHub 语言统计里不重复计入
+web/package-lock.json linguist-generated=true
+gateway/deploy/grafana/dashboard.json linguist-generated=true
+gateway/config.example.json linguist-language=JSON
+gateway/config.test.json linguist-generated=true
+
+# 文档与设计资料：GitHub 上标记为 documentation，不参与语言占比
+docs/** linguist-documentation
+gateway/docs/** linguist-documentation
+
+# 录屏中间帧不入库（构建产物）
+docs/assets/demo-frames/** linguist-vendored
