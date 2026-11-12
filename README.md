@@ -12,6 +12,7 @@
 `FastAPI` · `OpenAI 兼容` · `SSE 流式` · `混合检索 (向量 + BM25 + RRF)` · `防幻觉三道关` · `Skills / MCP` · `Vue 3 工作台`
 
 [![CI](https://github.com/shilaoban666/TsukiyoHub/actions/workflows/ci.yml/badge.svg)](https://github.com/shilaoban666/TsukiyoHub/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/shilaoban666/TsukiyoHub?sort=semver)](https://github.com/shilaoban666/TsukiyoHub/releases)
 [![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](pyproject.toml)
 [![Go](https://img.shields.io/badge/go-1.22%2B-00ADD8?logo=go&logoColor=white)](gateway/go.mod)
 [![Node](https://img.shields.io/badge/node-20-339933?logo=nodedotjs&logoColor=white)](web/package.json)
