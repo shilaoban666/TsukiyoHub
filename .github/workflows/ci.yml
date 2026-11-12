@@ -1,0 +1,146 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------- 后端内核
+  server:
+    name: Server · Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Lint (ruff)
+        run: ruff check server tests
+
+      - name: Test (pytest, zero external deps)
+        env:
+          TSUKIYO_DATA_ROOT: ${{ runner.temp }}/tsukiyo-data
+          TSUKIYO_LOGS_DIR: ${{ runner.temp }}/tsukiyo-logs
+        run: pytest tests -q
+
+  # ---------------------------------------------------------------- Go 网关
+  gateway:
+    name: Gateway · Go ${{ matrix.go }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ["1.22", "1.23"]
+    defaults:
+      run:
+        working-directory: gateway
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache-dependency-path: gateway/go.mod
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./... -count=1
+
+      - name: Build (static binary)
+        run: go build -trimpath -o /tmp/tsukiyo-gateway ./cmd/tsukiyo-gateway
+
+  # ---------------------------------------------------------------- 前端
+  web:
+    name: Web · Node 20
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Type-check + build
+        run: npm run build
+
+  # ------------------------------------------------- 网关镜像（快、可复现）
+  docker-gateway:
+    name: Docker · gateway image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build gateway image
+        run: docker build -f gateway/Dockerfile -t tsukiyohub/gateway:ci .
+
+  # --------------------------------------------------------------- 配置校验
+  configs:
+    name: Configs · YAML/JSON validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Validate Prometheus / Grafana / gateway config
+        run: |
+          pip install pyyaml
+          python - <<'PY'
+          import json, sys, yaml
+          from pathlib import Path
+
+          root = Path(".")
+          # gateway config
+          json.loads((root / "gateway/config.example.json").read_text(encoding="utf-8"))
+          json.loads((root / "gateway/config.test.json").read_text(encoding="utf-8"))
+          # grafana dashboard
+          dash = json.loads((root / "gateway/deploy/grafana/dashboard.json").read_text(encoding="utf-8"))
+          assert dash.get("panels"), "dashboard 没有面板"
+          # prometheus + grafana provisioning yaml
+          yamls = [
+              "gateway/deploy/prometheus/prometheus.yml",
+              "gateway/deploy/prometheus/alerts.yml",
+              "gateway/deploy/prometheus/recording_rules.yml",
+              "gateway/deploy/alertmanager/alertmanager.yml",
+              "gateway/deploy/grafana/provisioning/datasources/prometheus.yml",
+              "gateway/deploy/grafana/provisioning/dashboards/dashboards.yml",
+              "docker-compose.yml",
+          ]
+          for item in yamls:
+              yaml.safe_load((root / item).read_text(encoding="utf-8"))
+          print(f"OK: dashboard panels={len(dash['panels'])}, yaml files={len(yamls)}")
+          PY

@@ -1,0 +1,59 @@
+name: Bug report
+description: Something is broken or behaves unexpectedly
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please keep it short and reproducible.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, including the exact error message.
+      placeholder: "POST /api/chat returns 500 ..."
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Start with `python -m tsukiyohub` and default .env
+        2. Upload examples/knowledge
+        3. POST /api/chat with ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: false
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - server (chat / skills / rag kernel)
+        - gateway (Go)
+        - web (Vue workbench)
+        - docs / deploy / observability
+        - unknown
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      placeholder: "v0.1.0 or git sha"
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Paste from `logs/app.log` or gateway stdout. Remove secrets first.
+      render: text
+    validations:
+      required: false

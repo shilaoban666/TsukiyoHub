@@ -5,8 +5,8 @@
 
 from __future__ import annotations
 
-import contextlib
 import asyncio
+import contextlib
 import sys
 import time
 from contextlib import asynccontextmanager
@@ -202,7 +202,6 @@ def _register_meta_routes(app: FastAPI) -> None:
         container = get_container()
         stats = container.knowledge.stats()
         provider, model, llm_ready = container.router.info()
-        hot = container.hot.status() if container.hot is not None else {"backend": "none", "available": False}
         return HealthResponse(
             status="ok" if (llm_ready and container.db_ready) else "degraded",
             app=container.settings.app_name,

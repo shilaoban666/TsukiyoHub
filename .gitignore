@@ -32,6 +32,9 @@ gateway/.gocache/
 gateway/.gotmp/
 *.exe
 
+# 演示录制的中间帧（只提交合成的 GIF 与截图）
+docs/assets/demo-frames/
+
 # OS / 编辑器
 .DS_Store
 Thumbs.db

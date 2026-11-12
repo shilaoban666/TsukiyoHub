@@ -96,7 +96,6 @@ def _isolated_env():
 def client(_isolated_env):
     """FastAPI 测试客户端（会执行 lifespan，容器在此时构建）。"""
     from fastapi.testclient import TestClient
-
     from tsukiyohub.app import create_app
 
     with TestClient(create_app()) as test_client:

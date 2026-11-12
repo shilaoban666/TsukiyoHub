@@ -12,7 +12,7 @@
 
 from __future__ import annotations
 
-from tsukiyohub.kernel.skills.base import BaseSkill, SKILL_KINDS, ToolContext
+from tsukiyohub.kernel.skills.base import SKILL_KINDS, BaseSkill, ToolContext
 from tsukiyohub.kernel.skills.builtin import (
     CalculatorTool,
     KnowledgeTool,

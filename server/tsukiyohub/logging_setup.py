@@ -15,7 +15,7 @@ from typing import Any
 
 from tsukiyohub.config import Settings
 
-_CTX: contextvars.ContextVar[dict[str, Any]] = contextvars.ContextVar("tsukiyo_ctx", default={})
+_CTX: contextvars.ContextVar[dict[str, Any]] = contextvars.ContextVar("tsukiyo_ctx", default=None)
 _QUIET: contextvars.ContextVar[bool] = contextvars.ContextVar("tsukiyo_quiet", default=False)
 
 
@@ -23,7 +23,7 @@ class _ContextFilter(logging.Filter):
     """把请求上下文拼进日志行。"""
 
     def filter(self, record: logging.LogRecord) -> bool:
-        ctx = _CTX.get()
+        ctx = _CTX.get() or {}
         record.trace_id = ctx.get("trace_id", "-")
         record.path = ctx.get("path", "-")
         record.user = ctx.get("user", "-")
@@ -81,7 +81,7 @@ def get_logger(name: str) -> logging.Logger:
 
 
 def bind_request_context(**kwargs: Any) -> None:
-    ctx = dict(_CTX.get())
+    ctx = dict(_CTX.get() or {})
     ctx.update({k: v for k, v in kwargs.items() if v is not None})
     _CTX.set(ctx)
 

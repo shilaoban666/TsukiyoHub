@@ -34,10 +34,11 @@ import json
 import os
 import re
 import time
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, AsyncIterator
+from typing import Any
 
 from tsukiyohub.kernel.skills.base import BaseSkill, ToolContext
 from tsukiyohub.logging_setup import get_logger

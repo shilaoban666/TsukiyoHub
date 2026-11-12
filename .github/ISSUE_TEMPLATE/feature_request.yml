@@ -1,0 +1,35 @@
+name: Feature request
+description: Suggest a capability or an improvement
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the use case, not just the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How could TsukiyoHub help? Which layer does it belong to (kernel / adapter / gateway / web)?
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - server (chat / skills / rag kernel)
+        - gateway (Go)
+        - web (Vue workbench)
+        - docs / deploy / observability
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false

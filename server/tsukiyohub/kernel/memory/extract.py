@@ -14,8 +14,9 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Iterable
+from typing import TYPE_CHECKING, Any
 
 from tsukiyohub.logging_setup import get_logger
 from tsukiyohub.ports.memory import FactRecord

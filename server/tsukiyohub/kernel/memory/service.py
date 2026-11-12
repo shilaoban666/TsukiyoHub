@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from tsukiyohub.domain import MemoryFact
 from tsukiyohub.kernel.memory import policy, recall

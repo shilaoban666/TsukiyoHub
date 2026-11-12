@@ -19,8 +19,9 @@ import os
 import re
 import socket
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 from urllib.parse import urljoin, urlparse
 
 from tsukiyohub.kernel.skills.base import BaseSkill, ToolContext

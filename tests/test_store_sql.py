@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 import pytest
-
 from tsukiyohub.adapters.store_sql import build_stores
 from tsukiyohub.config import Settings
 from tsukiyohub.ports.memory import KVStore, MemoryStore, MessageRecord, SessionStore

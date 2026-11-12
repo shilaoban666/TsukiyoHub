@@ -6,7 +6,6 @@ import types
 from typing import Any
 
 import pytest
-
 from tsukiyohub.domain import Chunk, DocType, ScoredChunk, SourceType
 from tsukiyohub.kernel.skills import ToolContext
 from tsukiyohub.kernel.skills.builtin.knowledge import KnowledgeTool, format_evidence

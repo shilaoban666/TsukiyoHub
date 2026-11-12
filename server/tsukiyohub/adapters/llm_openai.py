@@ -20,7 +20,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import time
 import uuid
 from typing import Any
 
@@ -187,6 +189,9 @@ class FakeLLMClient:
     def __init__(self, model: str = "fake-chat", *, thinking: bool = False) -> None:
         self.model = model
         self.thinking = thinking
+        # 录制演示 GIF 用：按字符流式时人为放慢（默认 0 = 尽可能快）。
+        # 只影响演示模型，真实模型不会读这个变量。
+        self.stream_delay = max(0.0, float(os.environ.get("TSUKIYO_FAKE_DELAY_MS", "0") or 0)) / 1000.0
 
     def chat(
         self,
@@ -204,6 +209,8 @@ class FakeLLMClient:
                     on_delta(content[:index])
                 except Exception:  # noqa: BLE001 - 演示模型同样不能因回调失败中断
                     break
+                if self.stream_delay:
+                    time.sleep(self.stream_delay)
         prompt = "\n".join(str(message.get("content") or "") for message in messages)
         prompt_tokens = _estimate_tokens(prompt)
         completion_tokens = _estimate_tokens(content) + (20 if tool_calls else 0)

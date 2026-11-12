@@ -2,12 +2,24 @@
 
 # 🌙 TsukiyoHub
 
+[中文](README.md) · [English](README.en.md)
+
 **与业务无关的「聊天 + 技能 + RAG」内核服务 —— 任何前端都能接**
 
 从 `HQDingTalkrobot`（Python 后端）与 `HQDingtalkRobotUI`（Vue 3 前端）中抽取出来的通用内核：
 去掉了钉钉、组织架构、办公流程等企业业务，只保留「一次对话怎么走通、知识怎么被检索、能力怎么被调用」。
 
 `FastAPI` · `OpenAI 兼容` · `SSE 流式` · `混合检索 (向量 + BM25 + RRF)` · `防幻觉三道关` · `Skills / MCP` · `Vue 3 工作台`
+
+[![CI](https://github.com/YOUR_NAME/TsukiyoHub/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_NAME/TsukiyoHub/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](pyproject.toml)
+[![Go](https://img.shields.io/badge/go-1.22%2B-00ADD8?logo=go&logoColor=white)](gateway/go.mod)
+[![Node](https://img.shields.io/badge/node-20-339933?logo=nodedotjs&logoColor=white)](web/package.json)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Prometheus](https://img.shields.io/badge/metrics-Prometheus-E6522C?logo=prometheus&logoColor=white)](docs/observability.md)
+[![Grafana](https://img.shields.io/badge/dashboards-Grafana-F46800?logo=grafana&logoColor=white)](gateway/deploy/grafana/dashboard.json)
+
+![Demo](docs/assets/demo.gif)
 
 </div>
 
@@ -190,6 +202,20 @@ docker compose --profile monitor up -d   # Prometheus 9090 / Alertmanager 9093 /
 
 ---
 
+## 界面速览
+
+| 聊天（流式 + 引用） | 知识库 |
+|---|---|
+| ![chat](docs/assets/chat.png) | ![knowledge](docs/assets/knowledge.png) |
+
+| 路由网关（Prometheus 指标 / 熔断 / 追踪） | 告警（规则 / 事件 / Ack） |
+|---|---|
+| ![routing](docs/assets/routing.png) | ![alerts](docs/assets/alerts.png) |
+
+> 以上截图与顶部 GIF 都由脚本自动录制：见 [`docs/demo.md`](docs/demo.md)（`scripts/demo/`）。
+
+---
+
 ## 任何前端怎么接
 
 ### 1. 最省事：OpenAI 兼容协议
@@ -328,6 +354,8 @@ python scripts\smoke.py --base http://127.0.0.1:8080
 | [`gateway/docs/alerts.md`](gateway/docs/alerts.md) | 告警规则/渠道与 Prometheus、Alertmanager 部署 |
 | [`docs/web.md`](docs/web.md) | 参考前端：结构、SSE 解析、主题、对接自己的后端 |
 | [`docs/web-gateway.md`](docs/web-gateway.md) | 前端「路由网关 / 告警」页面说明与接口对应 |
+| [`docs/demo.md`](docs/demo.md) | 演示 GIF/截图怎么录（脚本化、可重录） |
+| [`docs/publishing.md`](docs/publishing.md) | GitHub 发布清单：badge、About/topics、tag/release、拆子仓 |
 | [`docs/extraction.md`](docs/extraction.md) | 从原项目抽取的逐文件对照与踩坑记录 |
 | [`docs/design/`](docs/design/) | 抽取期的侦察与契约文档（历史资料） |
 

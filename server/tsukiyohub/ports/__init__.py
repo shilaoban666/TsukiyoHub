@@ -21,7 +21,7 @@
 
 from tsukiyohub.ports.blob import BlobStore, LocalBlobStore
 from tsukiyohub.ports.embedding import EmbeddingProvider
-from tsukiyohub.ports.hot import NoopHotStore, HotStore
+from tsukiyohub.ports.hot import HotStore, NoopHotStore
 from tsukiyohub.ports.llm import LLMClient, LLMReply, LLMRouter, ToolCall
 from tsukiyohub.ports.memory import FactRecord, MemoryStore, MessageRecord, SessionRecord, SessionStore
 from tsukiyohub.ports.rerank import Reranker
