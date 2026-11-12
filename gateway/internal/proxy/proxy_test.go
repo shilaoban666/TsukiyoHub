@@ -345,7 +345,7 @@ func TestChatCompletionsStream(t *testing.T) {
 	}
 
 	text := metricsText(handler)
-	if !strings.Contains(text, "tsukiyo_gateway_ttft_seconds_bucket{model=\"m1\",le=") {
+	if !strings.Contains(text, "tsukiyo_gateway_ttft_seconds_bucket{model=\"m1\",") {
 		t.Fatalf("TTFT 直方图缺失：\n%s", text)
 	}
 }

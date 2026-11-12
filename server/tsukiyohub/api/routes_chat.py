@@ -172,6 +172,8 @@ async def _event_stream(container: ContainerDep, request: ChatRequest) -> AsyncI
     task = asyncio.create_task(run())
     sent = ""
     last_push = 0.0
+    started_at = time.monotonic()
+    first_token_at: float | None = None
     try:
         yield "event: status\ndata: thinking\n\n"
         while True:
@@ -186,6 +188,14 @@ async def _event_stream(container: ContainerDep, request: ChatRequest) -> AsyncI
                 if not text.startswith(sent):   # 换了一轮生成（例如查完知识库重新作答）
                     yield "event: reset\ndata: \n\n"
                     sent = ""
+                if first_token_at is None and text:
+                    first_token_at = time.monotonic()
+                    try:
+                        from tsukiyohub.metrics import record_sse_first_token
+
+                        record_sse_first_token(first_token_at - started_at)
+                    except Exception:  # noqa: BLE001 - 打点失败不影响流
+                        pass
                 # 推「当前累积全文」而不是增量：前端整段替换即可，天然幂等、不会因丢帧错位。
                 # 节流：模型逐 token 回调，按 40ms 合并一次，避免长回答把带宽打满。
                 now = time.monotonic()

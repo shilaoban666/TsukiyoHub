@@ -294,6 +294,7 @@ Base URL: http://127.0.0.1:8080/api/v1
 | `GET` | `/api/system/info` | 版本、依赖状态、知识库规模、运行时长 |
 | `GET` | `/healthz` | 健康检查（模型未就绪时 `status=degraded`，HTTP 仍 200） |
 | `GET` | `/readyz` | 就绪检查（知识库为空时 503） |
+| `GET` | `/metrics` | **Prometheus 指标**（标准文本格式，无需鉴权；口径见 `docs/observability.md`） |
 
 `GET /api/system/config`：
 

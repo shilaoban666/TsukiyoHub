@@ -111,7 +111,15 @@ class ConversationService:
             message_id = await self._persist(session, question, result)
             if memory_enabled:
                 self._extract_async(user_ctx["user_id"], question, result.answer)
-            return self._to_response(request, result, session, message_id, history, started=started)
+            response = self._to_response(request, result, session, message_id, history, started=started)
+            # 打点失败绝不能影响回答（见 tsukiyohub.metrics 的容错约定）
+            try:
+                from tsukiyohub.metrics import record_answer
+
+                record_answer(result, response)
+            except Exception:  # noqa: BLE001
+                pass
+            return response
 
     # ================================================================ 会话
     def resolve_session(self, request: ChatRequest) -> SessionRecord:

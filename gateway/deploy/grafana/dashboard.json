@@ -1,0 +1,1025 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      },
+      {
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "enable": true,
+        "expr": "ALERTS{alertstate=\"firing\"}",
+        "hide": false,
+        "iconColor": "red",
+        "name": "Prometheus 告警",
+        "tagKeys": "alertname,severity",
+        "titleFormat": "{{alertname}}",
+        "type": "tags"
+      }
+    ]
+  },
+  "description": "TsukiyoHub 的 AI infra 可观测性总看板：上面是 Go 路由网关（路由/熔断/限流/成本），下面是 Python 聊天/RAG 内核（grounded/SSE 首字/检索/技能/知识库）。所有 PromQL 只使用网关与内核 /metrics 实际暴露的指标，标签与 docs/gateway.md、server/tsukiyohub/metrics.py 严格一致。",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    { "asDropdown": false, "icon": "external link", "includeVars": false, "keepTime": false, "tags": [], "targetBlank": true, "title": "Prometheus", "tooltip": "原始指标与 /targets 抓取状态", "type": "link", "url": "http://localhost:9090" },
+    { "asDropdown": false, "icon": "external link", "includeVars": false, "keepTime": false, "tags": [], "targetBlank": true, "title": "Alertmanager", "tooltip": "告警分组与静默", "type": "link", "url": "http://localhost:9093" },
+    { "asDropdown": false, "icon": "external link", "includeVars": false, "keepTime": false, "tags": [], "targetBlank": true, "title": "网关 /admin/api/overview", "tooltip": "网关自带的管理概览（无 Prometheus 时也能看）", "type": "link", "url": "http://localhost:8082/admin/api/overview" }
+  ],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "panels": [],
+      "title": "① 总览 Overview — 现在服务是活的吗？快不快？贵不贵？",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：Prometheus 现在能不能抓到网关和内核？up=0 表示目标挂了或 /metrics 地址/端口不对（网关 /metrics 在管理端口 8082，内核在 8080）。这里用 job=~\".*tsukiyo.*\" 同时匹配 tsukiyo-gateway 与 tsukiyohub-core（见 prometheus.yml），改 job 名后同步改这里即可。",
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "options": { "0": { "color": "red", "index": 1, "text": "DOWN" }, "1": { "color": "green", "index": 0, "text": "UP" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 1 },
+      "id": 2,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value_and_name" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "up{job=~\".*tsukiyo.*\"}", "instant": true, "interval": "30s", "legendFormat": "{{job}}", "range": false, "refId": "A" }
+      ],
+      "title": "服务存活（up）",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：网关每秒处理多少个模型请求（5 分钟平均，只算成功进入网关的请求）。这是容量与流量基线，配合下面按 route/model 的拆分定位是谁在涨。",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 1 },
+      "id": 3,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "sum(rate(tsukiyo_gateway_requests_total{route=~\"$route\",model=~\"$model\"}[5m]))", "instant": true, "interval": "30s", "legendFormat": "RPS", "range": false, "refId": "A" }
+      ],
+      "title": "请求速率（RPS）",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：用户现在有多少请求是失败的？= 5xx 请求数 / 全部请求（5m）。clamp_min 防 0 请求时除零得到 NaN；1% 以上就是用户可感知的问题，先看「错误率 TopN」定位到 route/model。",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.01 }, { "color": "orange", "value": 0.05 }, { "color": "red", "value": 0.1 }] },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 1 },
+      "id": 4,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "sum(rate(tsukiyo_gateway_requests_total{route=~\"$route\",model=~\"$model\",status=~\"5..\"}[5m])) / clamp_min(sum(rate(tsukiyo_gateway_requests_total{route=~\"$route\",model=~\"$model\"}[5m])), 1e-9)", "instant": true, "interval": "30s", "legendFormat": "5xx 占比", "range": false, "refId": "A" }
+      ],
+      "title": "错误率（5xx / 全部）",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：95% 的请求有多快？用 request_duration_seconds 直方图算 P95，只在 le 上聚合（否则桶会被 route/model 拆散，histogram_quantile 会算错）。SSE 长连接会天然拉高这个值，判断“慢”要同时看 TTFT。",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 2 }, { "color": "orange", "value": 5 }, { "color": "red", "value": 10 }] },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 1 },
+      "id": 5,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "histogram_quantile(0.95, sum by (le) (rate(tsukiyo_gateway_request_duration_seconds_bucket{route=~\"$route\",model=~\"$model\"}[5m])))", "instant": true, "interval": "30s", "legendFormat": "P95", "range": false, "refId": "A" }
+      ],
+      "title": "P95 延迟",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：流式回答的“第一个字”多久出现？这是用户体感的关键指标（首字 1s 内算跟手）。ttft_seconds 只在流式请求且有首字时打点，所以它和总延迟不是同一批样本，不能相减。",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 3,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.5 }, { "color": "orange", "value": 1.5 }, { "color": "red", "value": 3 }] },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 6 },
+      "id": 6,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "histogram_quantile(0.95, sum by (le) (rate(tsukiyo_gateway_ttft_seconds_bucket{model=~\"$model\"}[5m])))", "instant": true, "interval": "30s", "legendFormat": "P95 TTFT", "range": false, "refId": "A" }
+      ],
+      "title": "P95 TTFT（首字延迟）",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：现在的 token 吞吐是多少？sum(rate(tokens_total[1m])) 把 prompt 与 completion 两个方向一起算。1m 窗口是为了更快反映突发；抖动大时把窗口改成 5m 看趋势。",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 6 },
+      "id": 7,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "sum(rate(tsukiyo_gateway_tokens_total{model=~\"$model\"}[1m]))", "instant": true, "interval": "30s", "legendFormat": "tokens/s", "range": false, "refId": "A" }
+      ],
+      "title": "Token 速率（tokens/s）",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：按当前节奏一小时会烧多少美元？= rate(cost_usd_total[5m]) × 3600。成本来自 models[].input_price/output_price（每 1K token 美元），是面试里最好讲的“AI 产品成本可观测”。",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 3,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 }] },
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 6 },
+      "id": 8,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "sum(rate(tsukiyo_gateway_cost_usd_total{model=~\"$model\"}[5m])) * 3600", "instant": true, "interval": "30s", "legendFormat": "USD/h", "range": false, "refId": "A" }
+      ],
+      "title": "成本速率（USD/h）",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：此刻还有多少个请求在处理？持续为 0 说明没流量；持续很高且 P95 上涨说明上游在排队（此时看供应商探活与熔断）。这是 gauge，直接取当前值，不要套 rate()。",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 50 }, { "color": "red", "value": 200 }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 6 },
+      "id": 9,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "tsukiyo_gateway_inflight", "instant": true, "interval": "30s", "legendFormat": "inflight", "range": false, "refId": "A" }
+      ],
+      "title": "在途请求（inflight）",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：延迟是在变差还是只是偶发？四条分位线（P50/P90/P95/P99）同图：P50 涨 = 整体变慢，P99 涨而 P50 不动 = 少量长尾（重试/大 prompt/流式长回答）。分母都用同一份 duration 直方图。",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 8, "gradientMode": "none", "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 11 },
+      "id": 10,
+      "options": { "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "histogram_quantile(0.50, sum by (le) (rate(tsukiyo_gateway_request_duration_seconds_bucket{route=~\"$route\",model=~\"$model\"}[5m])))", "interval": "30s", "legendFormat": "P50", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "histogram_quantile(0.90, sum by (le) (rate(tsukiyo_gateway_request_duration_seconds_bucket{route=~\"$route\",model=~\"$model\"}[5m])))", "interval": "30s", "legendFormat": "P90", "refId": "B" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "histogram_quantile(0.95, sum by (le) (rate(tsukiyo_gateway_request_duration_seconds_bucket{route=~\"$route\",model=~\"$model\"}[5m])))", "interval": "30s", "legendFormat": "P95", "refId": "C" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "histogram_quantile(0.99, sum by (le) (rate(tsukiyo_gateway_request_duration_seconds_bucket{route=~\"$route\",model=~\"$model\"}[5m])))", "interval": "30s", "legendFormat": "P99", "refId": "D" }
+      ],
+      "title": "延迟分位趋势（P50 / P90 / P95 / P99）",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 20 },
+      "id": 11,
+      "panels": [],
+      "title": "② 网关路由 Gateway — 谁在吃流量？谁在报错？熔断了吗？",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：每条对外路由（routes[].name）各承担多少流量？按 route 聚合 RPS，用来确认灰度/分流的比例是否符合预期（比如 canary 的 percent 是 10%）。",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 21 },
+      "id": 12,
+      "options": { "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "sum by (route) (rate(tsukiyo_gateway_requests_total{route=~\"$route\",model=~\"$model\"}[5m]))", "interval": "30s", "legendFormat": "{{route}}", "refId": "A" }
+      ],
+      "title": "各路由 RPS（route）",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：最终真正被调用的上游模型是谁？按 model 聚合 RPS。降级链生效时会看到主模型流量掉、备模型流量涨——这是验证 fallback 最快的一眼。",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 21 },
+      "id": 13,
+      "options": { "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "sum by (model) (rate(tsukiyo_gateway_requests_total{route=~\"$route\",model=~\"$model\"}[5m]))", "interval": "30s", "legendFormat": "{{model}}", "refId": "A" }
+      ],
+      "title": "各模型 RPS（最终命中的 upstream）",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：哪条路由最慢？histogram_quantile 必须在 sum by (le, route) 里保留 route 作为分组维度、其余标签丢掉，否则会得到“跨路由混桶”的错误分位数。",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 8, "gradientMode": "none", "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "dashed" } },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 5 }] },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 29 },
+      "id": 14,
+      "options": { "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "histogram_quantile(0.95, sum by (le, route) (rate(tsukiyo_gateway_request_duration_seconds_bucket{route=~\"$route\",model=~\"$model\"}[5m])))", "interval": "30s", "legendFormat": "{{route}}", "refId": "A" }
+      ],
+      "title": "各路由 P95 延迟",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：哪个模型（最终命中的 upstream）最慢？按 model 分组算 P95。同一个 route 走不同模型时，这张图能直接看出是策略选到了慢模型，还是那个模型整体变慢了——配合「各模型 RPS」看流量是否被切走。",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 8, "gradientMode": "none", "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "dashed" } },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 5 }] },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 29 },
+      "id": 47,
+      "options": { "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "histogram_quantile(0.95, sum by (le, model) (rate(tsukiyo_gateway_request_duration_seconds_bucket{route=~\"$route\",model=~\"$model\"}[5m])))", "interval": "30s", "legendFormat": "{{model}}", "refId": "A" }
+      ],
+      "title": "各模型 P95 延迟",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：首字延迟的长尾有多差？ttft_seconds 只有 model 一个标签，所以只能按 model 分组（不能按 route）。P99 明显高于 P95 说明存在少量“卡住”的流。",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 8, "gradientMode": "none", "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 29 },
+      "id": 15,
+      "options": { "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "histogram_quantile(0.50, sum by (le) (rate(tsukiyo_gateway_ttft_seconds_bucket{model=~\"$model\"}[5m])))", "interval": "30s", "legendFormat": "TTFT P50", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "histogram_quantile(0.95, sum by (le) (rate(tsukiyo_gateway_ttft_seconds_bucket{model=~\"$model\"}[5m])))", "interval": "30s", "legendFormat": "TTFT P95", "refId": "B" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "histogram_quantile(0.99, sum by (le) (rate(tsukiyo_gateway_ttft_seconds_bucket{model=~\"$model\"}[5m])))", "interval": "30s", "legendFormat": "TTFT P99", "refId": "C" }
+      ],
+      "title": "TTFT 分位（P50 / P95 / P99）",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：到底是哪条 route + model 在报错？错误率 = 该组合的 5xx 速率 / 该组合的总速率，取 Top10。表里只出现“至少错过一次”的组合（分子不存在就没有这条序列），所以空表其实是好消息。",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.01 }, { "color": "red", "value": 0.1 }] },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 37 },
+      "id": 16,
+      "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "Value" }] },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "topk(10, sum by (route, model) (rate(tsukiyo_gateway_requests_total{route=~\"$route\",model=~\"$model\",status=~\"5..\"}[5m])) / clamp_min(sum by (route, model) (rate(tsukiyo_gateway_requests_total{route=~\"$route\",model=~\"$model\"}[5m])), 1e-9))", "format": "table", "instant": true, "interval": "30s", "legendFormat": "{{route}} / {{model}}", "range": false, "refId": "A" }
+      ],
+      "title": "错误率 TopN（route × model）",
+      "transformations": [{ "id": "organize", "options": { "excludeByName": { "Time": true }, "indexByName": {}, "renameByName": {} } }],
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：每个模型的熔断器现在是什么状态？0=closed（正常放量）1=half_open（试探中）2=open（直接拒绝，走备选/降级）。open 持续超过 breaker.open_seconds 会自动转 half_open，所以这里的颜色变化就是故障恢复过程本身。",
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "options": { "0": { "color": "green", "index": 0, "text": "closed" }, "1": { "color": "orange", "index": 1, "text": "half_open" }, "2": { "color": "red", "index": 2, "text": "open" } }, "type": "value" }
+          ],
+          "decimals": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 1 }, { "color": "red", "value": 2 }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 37 },
+      "id": 17,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value_and_name" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "tsukiyo_gateway_breaker_state{model=~\"$model\"}", "instant": true, "interval": "30s", "legendFormat": "{{model}}", "range": false, "refId": "A" }
+      ],
+      "title": "熔断状态矩阵（0/1/2 着色）",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：哪些上游供应商现在探活失败？1=up，0=down。探活是 GET base_url + health_path，失败通常是 key/余额/网络问题；此时流量会自动走其它候选或 fallback，所以 provider_up=0 不一定立刻体现为错误率上升——这正是要单独看它的原因。",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "min": 0,
+          "max": 1,
+          "mappings": [
+            { "options": { "0": { "color": "red", "index": 1, "text": "DOWN" }, "1": { "color": "green", "index": 0, "text": "UP" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 45 },
+      "id": 18,
+      "options": { "displayMode": "basic", "legend": { "displayMode": "list", "placement": "bottom", "showLegend": false }, "minVizHeight": 16, "minVizWidth": 8, "namePlacement": "left", "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showUnfilled": true, "sizing": "auto", "valueMode": "color" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "tsukiyo_gateway_provider_up", "instant": true, "interval": "30s", "legendFormat": "{{provider}}", "range": false, "refId": "A" }
+      ],
+      "title": "供应商探活（provider_up）",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：现在有没有客户端在被限流（429）或预算拒绝（402）？两条线分别来自 ratelimit_rejected_total / budget_rejected_total 的速率。限流 spike = 某 client 打满 RPM/TPM；预算 spike = 某 client 的 monthly_usd 用完，属于业务问题而不是故障。",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "axisPlacement": "auto", "drawStyle": "bars", "fillOpacity": 20, "gradientMode": "none", "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 45 },
+      "id": 19,
+      "options": { "legend": { "calcs": ["lastNotNull", "sum"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "sum(rate(tsukiyo_gateway_ratelimit_rejected_total[5m]))", "interval": "30s", "legendFormat": "限流拒绝 (429)", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "sum(rate(tsukiyo_gateway_budget_rejected_total[5m]))", "interval": "30s", "legendFormat": "预算拒绝 (402)", "refId": "B" }
+      ],
+      "title": "限流 / 预算拒绝速率",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：探活本身是不是变慢了？provider_probe_seconds 是直方图（标签只有 provider），P95 接近探活超时阈值时，provider_up 会开始抖动。它和业务延迟无关，是独立的健康检查链路。",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 45 },
+      "id": 20,
+      "options": { "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "histogram_quantile(0.95, sum by (le, provider) (rate(tsukiyo_gateway_provider_probe_seconds_bucket[5m])))", "interval": "30s", "legendFormat": "{{provider}}", "refId": "A" }
+      ],
+      "title": "供应商探活耗时 P95",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 53 },
+      "id": 21,
+      "panels": [],
+      "title": "③ 聊天 / RAG 内核 Chat & RAG — 回答是不是“有据”？快不快？检索准不准？",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：问答流量按意图怎么分布？chat_requests_total 的 intent 来自内核分类（知识/闲聊/操作等），sum by (intent) 会把 grounded / degraded 两个标签一起聚合掉。意图突变通常意味着用户行为变了或分类器退化。",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 15, "gradientMode": "none", "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "normal" }, "thresholdsStyle": { "mode": "off" } },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 54 },
+      "id": 22,
+      "options": { "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "sum by (intent) (rate(tsukiyohub_chat_requests_total{intent=~\"$intent\"}[5m]))", "interval": "30s", "legendFormat": "{{intent}}", "refId": "A" }
+      ],
+      "title": "聊天 RPS（按 intent）",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：有多少回答真的带引用（grounded=true，即答案来源于检索到的知识片段）？这是 RAG 质量的“一线指标”：比例骤降 = 检索召回变差 / 知识库空了 / 模型开始瞎编。分母 clamp_min 防除零。",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "max": 1,
+          "min": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "orange", "value": 0.5 }, { "color": "yellow", "value": 0.7 }, { "color": "green", "value": 0.9 }] },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 54 },
+      "id": 23,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showThresholdLabels": false, "showThresholdMarkers": true, "sizing": "auto" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "sum(rate(tsukiyohub_chat_requests_total{intent=~\"$intent\",grounded=\"true\"}[5m])) / clamp_min(sum(rate(tsukiyohub_chat_requests_total{intent=~\"$intent\"}[5m])), 1e-9)", "instant": true, "interval": "30s", "legendFormat": "grounded", "range": false, "refId": "A" }
+      ],
+      "title": "Grounded 比例（带据回答占比）",
+      "type": "gauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：用户从提问到答案结束要等多久（P95，按 intent 分组）？chat_duration_seconds 是内核一次问答的端到端耗时，含检索 + 模型 + 引用组装；和网关的 request 延迟不是同一层，两者差值就是内核自身开销。",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 8, "gradientMode": "none", "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "dashed" } },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 10 }] },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 54 },
+      "id": 24,
+      "options": { "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "histogram_quantile(0.95, sum by (le, intent) (rate(tsukiyohub_chat_duration_seconds_bucket{intent=~\"$intent\"}[5m])))", "interval": "30s", "legendFormat": "{{intent}}", "refId": "A" }
+      ],
+      "title": "P95 聊天耗时（按 intent）",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：流式回答的第一个 token 多久到？sse_first_token_seconds 无标签，是全量聚合。它比聊天总耗时更能反映“跟手程度”；变慢通常是上游排队或 prompt 太长。",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 62 },
+      "id": 25,
+      "options": { "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "histogram_quantile(0.50, sum by (le) (rate(tsukiyohub_sse_first_token_seconds_bucket[5m])))", "interval": "30s", "legendFormat": "P50", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "histogram_quantile(0.95, sum by (le) (rate(tsukiyohub_sse_first_token_seconds_bucket[5m])))", "interval": "30s", "legendFormat": "P95", "refId": "B" }
+      ],
+      "title": "SSE 首字延迟（P50 / P95）",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：检索（向量库查询 + 重排）本身花多少时间？retrieval_duration_seconds 单独打点，用来区分「模型慢」还是「检索慢」——知识库变大后这个会先变差。",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 62 },
+      "id": 26,
+      "options": { "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "histogram_quantile(0.50, sum by (le) (rate(tsukiyohub_retrieval_duration_seconds_bucket[5m])))", "interval": "30s", "legendFormat": "P50", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "histogram_quantile(0.95, sum by (le) (rate(tsukiyohub_retrieval_duration_seconds_bucket[5m])))", "interval": "30s", "legendFormat": "P95", "refId": "B" }
+      ],
+      "title": "检索耗时（P50 / P95）",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：一次检索平均/长尾能召回几个片段？retrieval_hits 是计数直方图（桶 0/1/2/3/5/8/13/21）。P50 掉到 1~2 说明召回变差，要查 embedding、切块大小或 top_k；P95 很高说明上下文可能被噪声撑爆。",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 8, "gradientMode": "none", "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 62 },
+      "id": 27,
+      "options": { "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "histogram_quantile(0.50, sum by (le) (rate(tsukiyohub_retrieval_hits_bucket[5m])))", "interval": "30s", "legendFormat": "命中数 P50", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "histogram_quantile(0.95, sum by (le) (rate(tsukiyohub_retrieval_hits_bucket[5m])))", "interval": "30s", "legendFormat": "命中数 P95", "refId": "B" }
+      ],
+      "title": "检索命中数（P50 / P95，片段数）",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：回答里带了几条引用？这是 citations_per_answer 的累计桶分布（≤0 / ≤1 / ≤2 … 条引用的回答数），统计范围 = 右上角选中的时间窗。全集中在 le=0 说明检索没work或模型没引用。",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "min": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 70 },
+      "id": 28,
+      "options": { "displayMode": "gradient", "legend": { "displayMode": "list", "placement": "bottom", "showLegend": false }, "minVizHeight": 16, "minVizWidth": 8, "namePlacement": "left", "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showUnfilled": true, "sizing": "auto", "valueMode": "color" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "sum by (le) (increase(tsukiyohub_citations_per_answer_bucket[$__range]))", "instant": true, "interval": "30s", "legendFormat": "≤ {{le}} 条", "range": false, "refId": "A" }
+      ],
+      "title": "引用数分布（累计桶）",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：哪些技能最常被调用？skill_calls_total 有 skill / ok 两个标签，这里按 skill 聚合调用速率取 Top8（技能是内核里会调外部工具的能力，调用量突然归零往往说明编排断了）。",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 70 },
+      "id": 29,
+      "options": { "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "topk(8, sum by (skill) (rate(tsukiyohub_skill_calls_total[5m])))", "interval": "30s", "legendFormat": "{{skill}}", "refId": "A" }
+      ],
+      "title": "技能调用 TopN",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：哪个技能在失败？失败率 = 该技能 ok=\"false\" 速率 / 该技能总调用速率，取 Top8。分母用 clamp_min 防除零；某个技能 100% 失败通常是对端 API 挂了或参数校验变了，比整体错误率更早暴露问题。",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 8, "gradientMode": "none", "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "dashed" } },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 0.1 }, { "color": "red", "value": 0.5 }] },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 70 },
+      "id": 30,
+      "options": { "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "topk(8, sum by (skill) (rate(tsukiyohub_skill_calls_total{ok=\"false\"}[5m])) / clamp_min(sum by (skill) (rate(tsukiyohub_skill_calls_total[5m])), 1e-9))", "interval": "30s", "legendFormat": "{{skill}}", "refId": "A" }
+      ],
+      "title": "技能失败率 TopN",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 78 },
+      "id": 31,
+      "panels": [],
+      "title": "④ 知识与会话 Knowledge & Sessions — 知识库多大？在长吗？会话/记忆有多少？",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：知识库现在有多少文档、被切成多少个片段？两个 gauge 一起画（数量级差很多时看趋势而不是绝对值）：文档数涨而切块数不涨 = 新文档没切块成功；切块数远超文档数 = 切块粒度太细，检索会变贵。",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "lineInterpolation": "stepAfter", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": true, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 79 },
+      "id": 32,
+      "options": { "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "tsukiyohub_knowledge_documents", "interval": "30s", "legendFormat": "文档数", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "tsukiyohub_knowledge_chunks", "interval": "30s", "legendFormat": "切块数", "refId": "B" }
+      ],
+      "title": "知识库规模（文档数 / 切块数）",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：知识入库的节奏和失败情况？rate(...[15m]) × 60 = 次/分钟，按 status 分组：ok=新增、skipped=内容未变被跳过（正常，说明去重生效）、failed=转换/embedding 失败（要报警）。",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 12, "gradientMode": "none", "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "normal" }, "thresholdsStyle": { "mode": "off" } },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 79 },
+      "id": 33,
+      "options": { "legend": { "calcs": ["lastNotNull", "sum"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "sum by (status) (rate(tsukiyohub_knowledge_ingest_total[15m])) * 60", "interval": "30s", "legendFormat": "{{status}}", "refId": "A" }
+      ],
+      "title": "入库速率（次/分钟，按 status）",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：这个时间窗里入库了多少次、其中失败几次？用 increase 而不是 rate，是“窗口累计量”，适合和文档/切块增长对照。failed 有值先看日志里的转换错误。",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "min": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "failed" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+        ]
+      },
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 87 },
+      "id": 34,
+      "options": { "displayMode": "gradient", "legend": { "displayMode": "list", "placement": "bottom", "showLegend": false }, "minVizHeight": 16, "minVizWidth": 8, "namePlacement": "left", "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showUnfilled": true, "sizing": "auto", "valueMode": "color" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "sum by (status) (increase(tsukiyohub_knowledge_ingest_total[$__range]))", "instant": true, "interval": "30s", "legendFormat": "{{status}}", "range": false, "refId": "A" }
+      ],
+      "title": "入库累计（时间窗内）",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：现在有多少个会话？会话数只增不减（除非清理），它反映用户规模与留存；配合下面的消息数可以看出“人均聊了多少轮”。",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 4, "x": 8, "y": 87 },
+      "id": 35,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "tsukiyohub_sessions", "interval": "30s", "legendFormat": "会话", "refId": "A" }
+      ],
+      "title": "会话数",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：累计存了多少条消息？消息数 / 会话数 ≈ 平均对话轮次。消息数涨得比会话数快很多，说明有少数超长会话（上下文压缩策略要不要调，看这个）。",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 4, "x": 12, "y": 87 },
+      "id": 36,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "tsukiyohub_messages", "interval": "30s", "legendFormat": "消息", "refId": "A" }
+      ],
+      "title": "消息数",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：长期记忆里存了多少条事实？记忆条数增长意味着有信息被抽取沉淀（也意味着 prompt 会变长）；如果它一直不动而会话在涨，检查记忆抽取链路是否被关闭。",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 4, "x": 16, "y": 87 },
+      "id": 37,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "tsukiyohub_memory_facts", "interval": "30s", "legendFormat": "记忆", "refId": "A" }
+      ],
+      "title": "记忆条数",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：现在启用了几个技能？数量变化往往来自配置/技能加载，掉到 0 就是技能系统没起来（此时技能调用面板会同时归零，可以互相印证）。",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 4, "x": 20, "y": 87 },
+      "id": 38,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "tsukiyohub_skills_enabled", "interval": "30s", "legendFormat": "技能", "refId": "A" }
+      ],
+      "title": "启用技能数",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 93 },
+      "id": 39,
+      "panels": [],
+      "title": "⑤ 资源与 SLO — 距离违背承诺还有多远？告警响了吗？",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：最近 1 小时的成功率是否还在 SLO（99%）之上？= 1 - 5xx/全部（1h 窗口）。低于 99% 就是已经吃进当月错误预算；注意这里只用 5xx，4xx 是客户端问题，不算服务不可用。",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 3,
+          "max": 1,
+          "min": 0.9,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "orange", "value": 0.99 }, { "color": "yellow", "value": 0.995 }, { "color": "green", "value": 0.999 }] },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 94 },
+      "id": 40,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showThresholdLabels": false, "showThresholdMarkers": true, "sizing": "auto" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "1 - (sum(rate(tsukiyo_gateway_requests_total{route=~\"$route\",model=~\"$model\",status=~\"5..\"}[1h])) / clamp_min(sum(rate(tsukiyo_gateway_requests_total{route=~\"$route\",model=~\"$model\"}[1h])), 1e-9))", "instant": true, "interval": "30s", "legendFormat": "可用性 (1h)", "range": false, "refId": "A" }
+      ],
+      "title": "SLO 可用性（1 - 错误率，1h）",
+      "type": "gauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：错误预算正在以多快的速度被烧掉？burn rate = 窗口错误率 / (1 - SLO)，SLO=99% 时预算比例是 0.01。1x = 刚好在 30 天用完整月预算；1h 曲线 >14.4x 表示按当前速度约 2 天内就会烧光，属于该 page 的级别；6h 曲线用来确认不是短时抖动。",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 8, "gradientMode": "none", "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "dashed" } },
+          "decimals": 2,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 1 }, { "color": "red", "value": 14.4 }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 6, "y": 94 },
+      "id": 41,
+      "options": { "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "(sum(rate(tsukiyo_gateway_requests_total{route=~\"$route\",model=~\"$model\",status=~\"5..\"}[1h])) / clamp_min(sum(rate(tsukiyo_gateway_requests_total{route=~\"$route\",model=~\"$model\"}[1h])), 1e-9)) / 0.01", "interval": "30s", "legendFormat": "1h burn rate", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "(sum(rate(tsukiyo_gateway_requests_total{route=~\"$route\",model=~\"$model\",status=~\"5..\"}[6h])) / clamp_min(sum(rate(tsukiyo_gateway_requests_total{route=~\"$route\",model=~\"$model\"}[6h])), 1e-9)) / 0.01", "interval": "30s", "legendFormat": "6h burn rate", "refId": "B" }
+      ],
+      "title": "错误预算燃烧率（7 天 SLO 视角 / 1h 与 6h 窗口）",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：网关自己的告警引擎现在有几条 firing？这是内置 alert 引擎（config.json alerts.rules）的计数，和 Prometheus/Alertmanager 那条链路互相独立——两条链路一起看才知道“真炸了”还是“规则没配”。",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 1 }, { "color": "red", "value": 3 }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 94 },
+      "id": 42,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "tsukiyo_gateway_alerts_firing", "instant": true, "interval": "30s", "legendFormat": "firing", "range": false, "refId": "A" }
+      ],
+      "title": "网关内置告警数（firing）",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：进程跑多久没重启了？网关用 tsukiyo_gateway_uptime_seconds、内核用 tsukiyohub_uptime_seconds。数值突然回落到几十秒 = 刚刚重启过（配合错误率尖刺看，能区分“重启导致”还是“故障导致”）。",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }] },
+          "unit": "dtdurations"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 102 },
+      "id": 43,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value_and_name" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "tsukiyo_gateway_uptime_seconds", "instant": true, "interval": "30s", "legendFormat": "网关", "range": false, "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "tsukiyohub_uptime_seconds", "instant": true, "interval": "30s", "legendFormat": "内核", "range": false, "refId": "B" }
+      ],
+      "title": "运行时长（uptime）",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：最近 1 小时一共处理了多少请求？用 increase 而不是 rate，是容量规划与“这段时间有没有流量”的绝对值。配合成本面板可算“每千次请求多少钱”。",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 102 },
+      "id": 44,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "sum(increase(tsukiyo_gateway_requests_total{route=~\"$route\",model=~\"$model\"}[1h]))", "instant": true, "interval": "30s", "legendFormat": "请求数", "range": false, "refId": "A" }
+      ],
+      "title": "最近 1 小时请求数",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：内核的对话模型就绪了吗？llm_ready=0 时问答会降级（degraded=true）。它由内核的 router.info() 周期刷新，比业务错误率更早暴露“key 没了 / 网关地址错了”。",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "mappings": [
+            { "options": { "0": { "color": "red", "index": 1, "text": "未就绪" }, "1": { "color": "green", "index": 0, "text": "就绪" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 102 },
+      "id": 45,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "tsukiyohub_llm_ready", "instant": true, "interval": "30s", "legendFormat": "LLM", "range": false, "refId": "A" }
+      ],
+      "title": "内核 LLM 就绪",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "回答：向量化（embedding）就绪了吗？embedding_ready=0 时知识检索会退化/关闭（grounded 比例跟着掉）。它和 llm_ready 是两个独立依赖，任何一个 0 都要先修配置再看业务指标。",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "mappings": [
+            { "options": { "0": { "color": "red", "index": 1, "text": "未就绪" }, "1": { "color": "green", "index": 0, "text": "就绪" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 102 },
+      "id": 46,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "editorMode": "code", "expr": "tsukiyohub_embedding_ready", "instant": true, "interval": "30s", "legendFormat": "Embedding", "range": false, "refId": "A" }
+      ],
+      "title": "内核 Embedding 就绪",
+      "type": "stat"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["tsukiyohub", "llm-gateway", "rag", "ai-infra", "prometheus"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": true, "text": "Prometheus", "value": "prometheus" },
+        "hide": 0,
+        "includeAll": false,
+        "label": "数据源",
+        "multi": false,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      },
+      {
+        "allValue": ".*",
+        "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "definition": "label_values(tsukiyo_gateway_requests_total, route)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "路由 route",
+        "multi": true,
+        "name": "route",
+        "options": [],
+        "query": { "qryType": 1, "query": "label_values(tsukiyo_gateway_requests_total, route)", "refId": "PrometheusVariableQueryEditor-VariableQuery" },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "definition": "label_values(tsukiyo_gateway_requests_total, model)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "模型 model",
+        "multi": true,
+        "name": "model",
+        "options": [],
+        "query": { "qryType": 1, "query": "label_values(tsukiyo_gateway_requests_total, model)", "refId": "PrometheusVariableQueryEditor-VariableQuery" },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "definition": "label_values(tsukiyohub_chat_requests_total, intent)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "意图 intent",
+        "multi": true,
+        "name": "intent",
+        "options": [],
+        "query": { "qryType": 1, "query": "label_values(tsukiyohub_chat_requests_total, intent)", "refId": "PrometheusVariableQueryEditor-VariableQuery" },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": { "refresh_intervals": ["5s", "10s", "30s", "1m", "5m", "15m", "30m", "1h"] },
+  "timezone": "browser",
+  "title": "TsukiyoHub · AI Gateway & Agent Infra",
+  "uid": "tsukiyohub-observability",
+  "version": 1,
+  "weekStart": "monday"
+}

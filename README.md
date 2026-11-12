@@ -170,6 +170,24 @@ class WeatherSkill(BaseSkill):
 
 详见 [`docs/gateway.md`](docs/gateway.md)。
 
+### 📈 可观测性（Prometheus + Grafana）
+
+两个服务都暴露标准 `/metrics`（手写 exposition，零第三方依赖），并提供完整的**接入参考表**：
+
+- **网关**：请求数 / P95 / **TTFT** / tokens / 成本 / 熔断状态 / 供应商健康 / 限流与预算拒绝
+- **内核**：HTTP / 问答（意图、grounded、降级）/ **SSE 首字** / 检索耗时与命中 / **技能调用** /
+  引用数 / 知识库规模 / 会话与记忆
+- **记录规则**：`tokens/s`、`TPOT`、P95/P99、`cost per 1M output tokens`、`grounded_ratio`、SLO 燃烧率
+- **告警**：网关 7 条 + 内核 6 条（含 agent 工具失败率、有据回答占比）+ SLO 多窗口燃烧率
+- **看板**：`gateway/deploy/grafana/dashboard.json`（一键导入）
+
+```powershell
+docker compose --profile monitor up -d   # Prometheus 9090 / Alertmanager 9093 / Grafana 3000
+```
+
+指标口径、PromQL 示例、排障速查表、业界约定对照（OTel GenAI / vLLM）见
+[`docs/observability.md`](docs/observability.md)。
+
 ---
 
 ## 任何前端怎么接
@@ -306,6 +324,7 @@ python scripts\smoke.py --base http://127.0.0.1:8080
 | [`docs/skills.md`](docs/skills.md) | 技能系统：Tool/SKILL.md/MCP、如何写一个技能 |
 | [`docs/memory.md`](docs/memory.md) | 记忆：抽取、召回、禁记、清空 |
 | [`docs/gateway.md`](docs/gateway.md) | 路由网关与告警：配置、策略、指标、扩展点 |
+| [`docs/observability.md`](docs/observability.md) | **Prometheus 接入参考表**：指标清单 / PromQL / 告警 / 看板 / 面试讲法 |
 | [`gateway/docs/alerts.md`](gateway/docs/alerts.md) | 告警规则/渠道与 Prometheus、Alertmanager 部署 |
 | [`docs/web.md`](docs/web.md) | 参考前端：结构、SSE 解析、主题、对接自己的后端 |
 | [`docs/web-gateway.md`](docs/web-gateway.md) | 前端「路由网关 / 告警」页面说明与接口对应 |

@@ -137,7 +137,7 @@ type Strategy interface {
 ```
 tsukiyo_gateway_requests_total{route,model,provider,status}
 tsukiyo_gateway_request_duration_seconds_bucket{route,model,provider,le}
-tsukiyo_gateway_ttft_seconds_bucket{model}
+tsukiyo_gateway_ttft_seconds_bucket{route,model,provider}
 tsukiyo_gateway_tokens_total{model,direction}
 tsukiyo_gateway_cost_usd_total{model}
 tsukiyo_gateway_inflight
@@ -148,13 +148,19 @@ tsukiyo_gateway_budget_rejected_total{client}
 tsukiyo_gateway_alerts_firing
 ```
 
-配套部署物在 `gateway/deploy/prometheus/` 与 `gateway/deploy/alertmanager/`：
+配套部署物在 `gateway/deploy/prometheus/`、`gateway/deploy/alertmanager/` 与 `gateway/deploy/grafana/`：
 
 ```powershell
+# 一键起监控栈（Prometheus 9090 / Alertmanager 9093 / Grafana 3000）
+docker compose --profile monitor up -d
+
 # 本机验证
 prometheus --config.file=gateway\deploy\prometheus\prometheus.yml
 alertmanager --config.file=gateway\deploy\alertmanager\alertmanager.yml
 ```
+
+Grafana 看板 `gateway/deploy/grafana/dashboard.json`（5 行 42 个面板）由 provisioning 自动加载；
+指标口径、PromQL 与排障速查见 [`docs/observability.md`](../docs/observability.md)。
 
 ### 4.2 请求追踪
 

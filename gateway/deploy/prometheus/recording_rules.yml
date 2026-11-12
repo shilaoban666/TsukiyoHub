@@ -1,0 +1,117 @@
+# TsukiyoHub —— 记录规则（把高频计算固化成指标，供看板/告警低成本引用）
+#
+# 命名约定：tsukiyo_<domain>:<指标>_<窗口>，冒号是 Prometheus 的 recording rule 惯例。
+# 面试可以讲：为什么用 recording rules —— ① 看板/告警避免重复扫描；② 把「业务语义」
+# （如 TPOT、每小时成本、错误预算燃烧率）固化下来，团队口径一致。
+
+groups:
+  # ============================================================ 网关吞吐 / 延迟
+  - name: tsukiyo-gateway-traffic
+    interval: 30s
+    rules:
+      # 每秒请求数（按路由）
+      - record: tsukiyo_gateway:requests_per_second_by_route
+        expr: sum by (route) (rate(tsukiyo_gateway_requests_total[1m]))
+
+      # 每秒 token 数（AI infra 的核心吞吐指标：tokens/s）
+      - record: tsukiyo_gateway:tokens_per_second_by_model
+        expr: sum by (model, direction) (rate(tsukiyo_gateway_tokens_total[1m]))
+
+      # 输出 token 吞吐（生成速度，最能反映模型/上游健康度）
+      - record: tsukiyo_gateway:output_tokens_per_second
+        expr: sum(rate(tsukiyo_gateway_tokens_total{direction="completion"}[1m]))
+
+      # TPOT（Time Per Output Token）：平均每个输出 token 的耗时（秒）
+      # 只统计流式请求：总耗时减去首字延迟，再除以输出 token 数
+      - record: tsukiyo_gateway:tpot_seconds_avg
+        expr: |
+          sum(rate(tsukiyo_gateway_request_duration_seconds_sum[5m]))
+            / clamp_min(sum(rate(tsukiyo_gateway_tokens_total{direction="completion"}[5m])), 1e-9)
+
+      # 每条路由的 P95 / P99 延迟（预先算好，看板与告警直接用）
+      - record: tsukiyo_gateway:p95_latency_ms_by_route
+        expr: |
+          1000 * histogram_quantile(0.95,
+            sum by (le, route) (rate(tsukiyo_gateway_request_duration_seconds_bucket[5m])))
+
+      - record: tsukiyo_gateway:p99_latency_ms_by_route
+        expr: |
+          1000 * histogram_quantile(0.99,
+            sum by (le, route) (rate(tsukiyo_gateway_request_duration_seconds_bucket[5m])))
+
+      # 首字延迟 P95（按路由 / 供应商）——流式体验的核心 SLO
+      - record: tsukiyo_gateway:ttft_p95_ms_by_route
+        expr: |
+          1000 * histogram_quantile(0.95,
+            sum by (le, route) (rate(tsukiyo_gateway_ttft_seconds_bucket[5m])))
+
+      - record: tsukiyo_gateway:ttft_p95_ms_by_provider
+        expr: |
+          1000 * histogram_quantile(0.95,
+            sum by (le, provider) (rate(tsukiyo_gateway_ttft_seconds_bucket[5m])))
+
+  # ============================================================ 网关错误 / 成本
+  - name: tsukiyo-gateway-errors-cost
+    interval: 30s
+    rules:
+      # 错误率（按路由），分母用 clamp_min 防止 0 除
+      - record: tsukiyo_gateway:error_ratio_by_route
+        expr: |
+          sum by (route) (rate(tsukiyo_gateway_requests_total{status=~"5..|429|402"}[5m]))
+            / clamp_min(sum by (route) (rate(tsukiyo_gateway_requests_total[5m])), 1e-9)
+
+      - record: tsukiyo_gateway:error_ratio
+        expr: |
+          sum(rate(tsukiyo_gateway_requests_total{status=~"5..|429|402"}[5m]))
+            / clamp_min(sum(rate(tsukiyo_gateway_requests_total[5m])), 1e-9)
+
+      # 成本速率：USD/小时（把 counter 的每秒增量换算成小时）
+      - record: tsukiyo_gateway:cost_usd_per_hour
+        expr: 3600 * sum(rate(tsukiyo_gateway_cost_usd_total[5m]))
+
+      # 单位成本：每 100 万输出 token 花了多少钱（FinOps 视角的性价比）
+      - record: tsukiyo_gateway:cost_usd_per_1m_output_tokens
+        expr: |
+          1e6 * sum(rate(tsukiyo_gateway_cost_usd_total[1h]))
+            / clamp_min(sum(rate(tsukiyo_gateway_tokens_total{direction="completion"}[1h])), 1e-9)
+
+  # ============================================================ 聊天内核（agent/RAG）
+  - name: tsukiyohub-core
+    interval: 30s
+    rules:
+      - record: tsukiyohub:chat_requests_per_second
+        expr: sum(rate(tsukiyohub_chat_requests_total[1m]))
+
+      # 「有据回答」占比：grounded=true / 全部问答。低于阈值说明知识库覆盖不足或检索退化
+      - record: tsukiyohub:grounded_ratio
+        expr: |
+          sum(rate(tsukiyohub_chat_requests_total{grounded="true"}[5m]))
+            / clamp_min(sum(rate(tsukiyohub_chat_requests_total[5m])), 1e-9)
+
+      # 降级占比：degraded=true（没走大模型 / 模型全挂）
+      - record: tsukiyohub:degraded_ratio
+        expr: |
+          sum(rate(tsukiyohub_chat_requests_total{degraded="true"}[5m]))
+            / clamp_min(sum(rate(tsukiyohub_chat_requests_total[5m])), 1e-9)
+
+      # 检索延迟 P95
+      - record: tsukiyohub:retrieval_p95_ms
+        expr: |
+          1000 * histogram_quantile(0.95, sum by (le) (rate(tsukiyohub_retrieval_duration_seconds_bucket[5m])))
+
+      # 技能调用失败率（agent infra 的关键质量指标）
+      - record: tsukiyohub:skill_failure_ratio
+        expr: |
+          sum(rate(tsukiyohub_skill_calls_total{ok="false"}[5m]))
+            / clamp_min(sum(rate(tsukiyohub_skill_calls_total[5m])), 1e-9)
+
+      # SSE 首字延迟 P95
+      - record: tsukiyohub:sse_first_token_p95_ms
+        expr: |
+          1000 * histogram_quantile(0.95, sum by (le) (rate(tsukiyohub_sse_first_token_seconds_bucket[5m])))
+
+      # 平均引用数（回答里带了几条出处）
+      - record: tsukiyohub:citations_avg
+        expr: |
+          sum(rate(tsukiyohub_citations_per_answer_sum[5m]))
+            / clamp_min(sum(rate(tsukiyohub_citations_per_answer_count[5m])), 1e-9)

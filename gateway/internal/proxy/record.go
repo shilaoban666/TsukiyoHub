@@ -18,7 +18,8 @@ const (
 	MetricRequests = "tsukiyo_gateway_requests_total"
 	// MetricDuration 请求耗时直方图（秒）{route,model,provider}
 	MetricDuration = "tsukiyo_gateway_request_duration_seconds"
-	// MetricTTFT 首字延迟直方图（秒）{model}
+	// MetricTTFT 首字延迟直方图（秒）{route,model,provider}
+	// 带 route/provider 标签，才能做「某条路由 / 某个供应商的首字延迟 SLO」。
 	MetricTTFT = "tsukiyo_gateway_ttft_seconds"
 	// MetricTokens token 数 {model,direction=prompt|completion}
 	MetricTokens = "tsukiyo_gateway_tokens_total"
@@ -138,7 +139,11 @@ func (h *Handler) record(rec model.RequestRecord, cfg *model.Config, client mode
 			"provider": rec.Provider,
 		}, float64(rec.LatencyMS)/1000)
 		if rec.TTFTMS > 0 {
-			reg.Observe(MetricTTFT, map[string]string{"model": rec.Model}, float64(rec.TTFTMS)/1000)
+			reg.Observe(MetricTTFT, map[string]string{
+				"route":    rec.Route,
+				"model":    rec.Model,
+				"provider": rec.Provider,
+			}, float64(rec.TTFTMS)/1000)
 		}
 		if rec.Usage.PromptTokens > 0 {
 			reg.Inc(MetricTokens, map[string]string{"model": rec.Model, "direction": "prompt"}, float64(rec.Usage.PromptTokens))

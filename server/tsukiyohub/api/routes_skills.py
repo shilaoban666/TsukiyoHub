@@ -71,9 +71,18 @@ async def test_skill(
     )
     try:
         content = skill.call(dict(payload.get("args") or {}), ctx)
+        ok = True
     except Exception as exc:  # noqa: BLE001
         logger.exception("技能 %s 调用失败", name)
+        ok = False
+        content = ""
+        from tsukiyohub.metrics import record_skill_call
+
+        record_skill_call(name, False)
         raise HTTPException(status_code=500, detail=f"技能调用失败：{exc}") from exc
+    from tsukiyohub.metrics import record_skill_call
+
+    record_skill_call(name, ok)
     return {
         "name": name,
         "content": content,

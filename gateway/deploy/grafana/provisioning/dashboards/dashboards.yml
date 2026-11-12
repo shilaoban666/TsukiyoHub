@@ -1,0 +1,27 @@
+# Grafana —— 看板自动装配（file provisioning）
+#
+# 作用：Grafana 启动 / 每 updateIntervalSeconds 扫描一次 options.path，
+# 把里面的 *.json 当成看板加载。改 dashboard.json 后不用重新导入或重启 Grafana，
+# 最多等 updateIntervalSeconds 秒就会热更新。
+#
+# options.path 是 **容器内** 的路径，docker-compose 里把
+# ./gateway/deploy/grafana/dashboard.json 挂到了 /var/lib/grafana/dashboards/。
+
+apiVersion: 1
+
+providers:
+  - name: tsukiyohub
+    orgId: 1
+    # 看板会归到这个目录（不存在时 Grafana 自动创建）
+    folder: TsukiyoHub
+    folderUid: tsukiyohub
+    type: file
+    # false = 在 UI 里删掉看板后，下一次扫描会被文件重新拉回来（文件是唯一真源）
+    disableDeletion: false
+    # 允许在 UI 里改看板（改完不落盘，容器重建会回到文件版本；长期修改请改 JSON 并提 PR）
+    allowUiUpdates: true
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      # false = 不再按子目录拆分子目录层级，目录里的 json 全挂到 folder 下
+      foldersFromFilesStructure: false

@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import contextlib
+import asyncio
 import sys
 import time
 from contextlib import asynccontextmanager
@@ -13,9 +14,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 
 from tsukiyohub import __version__ as VERSION
+from tsukiyohub import metrics
 from tsukiyohub.api import (
     routes_chat,
     routes_gateway,
@@ -72,14 +74,28 @@ async def lifespan(app: FastAPI):
 
     _print_banner(container)
 
+    # 资源类指标（文档数/会话数/记忆条数/就绪状态）每 15 秒刷新一次
+    sampler = asyncio.create_task(_metrics_sampler(container))
+
     try:
         yield
     finally:
+        sampler.cancel()
         container = get_container()
         with contextlib.suppress(Exception):
             if container.knowledge is not None:
                 container.knowledge.persist()
         logger.info("服务退出")
+
+
+async def _metrics_sampler(container) -> None:
+    """周期刷新 gauge；失败只记日志，不影响服务。"""
+    while True:
+        try:
+            metrics.refresh_gauges(container)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("指标刷新失败：%s", exc)
+        await asyncio.sleep(15)
 
 
 def _print_banner(container) -> None:
@@ -208,6 +224,11 @@ def _register_meta_routes(app: FastAPI) -> None:
             },
         )
 
+    @app.get("/metrics", tags=["meta"], summary="Prometheus 指标")
+    async def prometheus_metrics() -> PlainTextResponse:
+        """标准 Prometheus exposition 文本（无需鉴权，便于 Prometheus 抓取）。"""
+        return PlainTextResponse(metrics.render(), media_type="text/plain; version=0.0.4; charset=utf-8")
+
     @app.get("/readyz", tags=["meta"], summary="就绪检查（含知识库）")
     async def readyz() -> JSONResponse:
         """就绪检查：知识库为空时返回 503，供负载均衡摘流量。"""
@@ -236,6 +257,10 @@ def _register_middleware(app: FastAPI) -> None:
         finally:
             clear_request_context()
         elapsed_ms = int((time.perf_counter() - started) * 1000)
+        # 指标：路径用路由模板（基数可控），拿不到时记为 unmatched
+        route = request.scope.get("route")
+        path_label = str(getattr(route, "path", "") or "unmatched")
+        metrics.record_http(request.method, path_label, response.status_code, elapsed_ms / 1000)
         response.headers["X-Request-Id"] = trace_id
         response.headers["X-Process-Time-Ms"] = str(elapsed_ms)
         if request.url.path not in ("/healthz", "/readyz", "/api/system/info"):

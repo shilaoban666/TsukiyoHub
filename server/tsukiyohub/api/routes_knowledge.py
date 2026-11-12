@@ -83,9 +83,15 @@ async def upload(
                 "title": result.title, "chunk_count": result.chunk_count,
                 "skipped": result.skipped, "reason": result.reason, "error": result.error,
             })
+            from tsukiyohub.metrics import record_ingest
+
+            record_ingest("failed" if result.error else ("skipped" if result.skipped else "ok"))
         except Exception as exc:  # noqa: BLE001 - 单个文件失败不影响其它文件
             logger.exception("文档入库失败：%s", name)
             results.append({"file_name": name, "ok": False, "error": str(exc)})
+            from tsukiyohub.metrics import record_ingest
+
+            record_ingest("failed")
     ok_count = sum(1 for r in results if r.get("ok"))
     return {"ok": ok_count == len(results), "count": ok_count, "results": results}
 

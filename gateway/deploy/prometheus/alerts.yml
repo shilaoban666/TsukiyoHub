@@ -5,7 +5,7 @@
 #
 #   tsukiyo_gateway_requests_total{route,model,provider,status}
 #   tsukiyo_gateway_request_duration_seconds_bucket{route,model,provider,le}
-#   tsukiyo_gateway_ttft_seconds_bucket{model}
+#   tsukiyo_gateway_ttft_seconds_bucket{route,model,provider}
 #   tsukiyo_gateway_tokens_total{model,direction}
 #   tsukiyo_gateway_cost_usd_total{model}
 #   tsukiyo_gateway_inflight
@@ -151,3 +151,170 @@ groups:
           description: >-
             费用异常：检查是否有客户端在跑大 prompt / 长输出、是否有模型价格配置写错
             （models[].input_price / output_price 是「每 1K tokens 美元」）。
+
+  # ==========================================================================
+  # 聊天 / 技能 / RAG 内核（Python 服务 :8080/metrics）
+  # 指标语义见 docs/observability.md；记录规则见 recording_rules.yml
+  # ==========================================================================
+  - name: tsukiyohub-core-quality
+    interval: 30s
+    rules:
+      - alert: TsukiyoCoreGroundedRatioLow
+        # 「有据回答」占比过低：知识库覆盖不足 / 检索退化 / 阈值配错
+        expr: |
+          (
+            tsukiyohub:grounded_ratio < 0.5
+            and
+            sum(rate(tsukiyohub_chat_requests_total[5m])) > 0.02
+          )
+        for: 15m
+        labels:
+          severity: warning
+          component: core
+          runbook: docs/observability.md
+        annotations:
+          summary: "有据回答占比仅 {{ $value | humanizePercentage }}（阈值 50%）"
+          description: >-
+            先看 /api/knowledge/stats 与检索调试 /api/knowledge/search：
+            命中分数是否整体偏低（换 embedding 模型后阈值要重标定）、
+            知识库里是否缺对应文档。再看 tsukiyohub_retrieval_hits 分布。
+
+      - alert: TsukiyoCoreDegradedHigh
+        # 降级率过高：没走大模型（无 Key / 模型全挂）或全部走原文摘录
+        expr: |
+          (
+            tsukiyohub:degraded_ratio > 0.2
+            and
+            sum(rate(tsukiyohub_chat_requests_total[5m])) > 0.02
+          )
+        for: 10m
+        labels:
+          severity: critical
+          component: core
+          runbook: docs/observability.md
+        annotations:
+          summary: "回答降级率 {{ $value | humanizePercentage }}（阈值 20%）"
+          description: >-
+            检查 LLM_API_KEY / 网关可达性：tsukiyohub_llm_ready 是否为 1；
+            若是网关问题，看 TsukiyoGateway* 系列告警与 /api/gateway/overview。
+
+      - alert: TsukiyoCoreRetrievalSlow
+        # 检索 P95 过高：向量库/embedding 接口慢，或单次召回太多
+        expr: |
+          tsukiyohub:retrieval_p95_ms > 1500
+          and
+          sum(rate(tsukiyohub_retrieval_duration_seconds_count[5m])) > 0
+        for: 10m
+        labels:
+          severity: warning
+          component: rag
+          runbook: docs/rag.md
+        annotations:
+          summary: "检索 P95 延迟 {{ $value | humanize }}ms（阈值 1500ms）"
+          description: >-
+            看 embedding 接口耗时（换 provider / 加缓存 / 降 batch）、
+            向量库健康（Milvus 连接超时会让请求退化）、以及 RETRIEVAL_*_K 是否调得过大。
+
+      - alert: TsukiyoCoreSkillFailures
+        # 技能失败率：agent infra 最该盯的指标之一（工具坏了，模型再强也没用）
+        expr: |
+          (
+            tsukiyohub:skill_failure_ratio > 0.1
+            and
+            sum(rate(tsukiyohub_skill_calls_total[5m])) > 0.01
+          )
+        for: 10m
+        labels:
+          severity: warning
+          component: agent
+          runbook: docs/skills.md
+        annotations:
+          summary: "技能调用失败率 {{ $value | humanizePercentage }}（阈值 10%）"
+          description: >-
+            按 skill 标签拆开看是哪个技能：web_fetch 常见是网络/SSRF 拦截，
+            knowledge_search 是检索后端，calculator 是参数格式。可调
+            POST /api/skills/{name}/test 直接复现。
+
+      - alert: TsukiyoCoreSSEFirstTokenSlow
+        # 流式首字慢：用户感知最直接的延迟
+        expr: |
+          tsukiyohub:sse_first_token_p95_ms > 8000
+          and
+          sum(rate(tsukiyohub_sse_first_token_seconds_count[5m])) > 0
+        for: 10m
+        labels:
+          severity: warning
+          component: core
+          runbook: docs/observability.md
+        annotations:
+          summary: "SSE 首字 P95 {{ $value | humanize }}ms（阈值 8s）"
+          description: >-
+            首字慢但总耗时正常 → 上游模型/网关排队；两者同步变慢 → 本服务或网络。
+            对照 tsukiyo_gateway:ttft_p95_ms_by_route 定位。
+
+      - alert: TsukiyoCoreChatErrorRateHigh
+        # 内核 5xx：一般是数据库/模型适配器异常
+        expr: |
+          (
+            sum(rate(tsukiyohub_http_requests_total{path=~"/api/chat.*",status=~"5.."}[5m]))
+            /
+            clamp_min(sum(rate(tsukiyohub_http_requests_total{path=~"/api/chat.*"}[5m])), 1e-9)
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          component: core
+          runbook: docs/observability.md
+        annotations:
+          summary: "聊天接口 5xx 比例 {{ $value | humanizePercentage }}（阈值 5%）"
+          description: >-
+            查看服务日志（logs/app.log）里的 trace_id；常见原因：数据库连接断开、
+            模型适配器异常、知识库索引损坏（可 /api/knowledge/reindex）。
+
+  # ==========================================================================
+  # SLO：错误预算燃烧率（多窗口，Google SRE Workbook 的 14.4x / 6x 阈值）
+  # 服务本身没有 SLI 白皮书时，这是最省事的「该不该叫醒人」判断。
+  # 示例 SLO：网关可用性 99.5%（错误预算 0.5%）
+  # ==========================================================================
+  - name: tsukiyo-slo-burn-rate
+    interval: 1m
+    rules:
+      - alert: TsukiyoGatewaySLOBurnFast
+        # 1 小时窗口燃烧率 > 14.4 → 按这个速度 2 天就会烧完 30 天预算 → 立即处理
+        expr: |
+          (
+            sum(rate(tsukiyo_gateway_requests_total{status=~"5.."}[1h]))
+            /
+            clamp_min(sum(rate(tsukiyo_gateway_requests_total[1h])), 1e-9)
+          ) > (14.4 * 0.005)
+        for: 2m
+        labels:
+          severity: critical
+          component: slo
+          slo: "gateway-availability 99.5%"
+          runbook: docs/observability.md
+        annotations:
+          summary: "网关错误预算燃烧过快（1h 错误率 {{ $value | humanizePercentage }}）"
+          description: >-
+            错误预算 0.5%：1 小时错误率超过 7.2% 即视为快速燃烧。
+            此时应停止发布、回滚最近变更、检查上游供应商。
+
+      - alert: TsukiyoGatewaySLOBurnSlow
+        # 6 小时窗口燃烧率 > 6 → 一周内烧完 → 当天内跟进（不叫醒）
+        expr: |
+          (
+            sum(rate(tsukiyo_gateway_requests_total{status=~"5.."}[6h]))
+            /
+            clamp_min(sum(rate(tsukiyo_gateway_requests_total[6h])), 1e-9)
+          ) > (6 * 0.005)
+        for: 15m
+        labels:
+          severity: warning
+          component: slo
+          slo: "gateway-availability 99.5%"
+          runbook: docs/observability.md
+        annotations:
+          summary: "网关错误预算持续消耗（6h 错误率 {{ $value | humanizePercentage }}）"
+          description: >-
+            6 小时错误率超过 3% 即视为慢速燃烧：记录问题、当天内定位，
+            不要等到预算烧完才开始查。

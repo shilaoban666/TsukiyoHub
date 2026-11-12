@@ -1,0 +1,31 @@
+# Grafana —— Prometheus 数据源自动装配
+#
+# 作用：Grafana 启动时读这个文件，直接建好数据源，不需要在 UI 里点
+# “Connections → Add data source”。容器重建后也不会丢，适合随 docker-compose 一起交付。
+#
+# 注意 uid 必须和 dashboard.json 的模板变量默认值一致（prometheus），
+# 否则看板里 {$datasource} 选不中、所有面板会显示 “Datasource not found”。
+#
+# 本机（非 compose）跑 Grafana 时把 url 改成 http://127.0.0.1:9090；
+# Grafana 和 Prometheus 都在 compose 里时用服务名 http://prometheus:9090。
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    # 请求统一走 Grafana 后端代理（浏览器直连会踩 CORS / 内网不可达；v11 只有这一种模式）
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      # POST 比 GET 更适合长 PromQL（变量 label_values 也会走 POST）
+      httpMethod: POST
+      # 必须和 prometheus.yml 的 scrape_interval 对齐（本仓库是 15s）：
+      # Grafana 用这个值计算 $__rate_interval，写错会让 rate() 窗口小于一个采样间隔，
+      # 结果出现“尖刺归零”。改 prometheus.yml 的抓取间隔时记得同步这里。
+      timeInterval: 15s
+      prometheusType: Prometheus
+      # 允许 Grafana 用 /api/v1/series 做变量自动补全（route/model/intent 下拉）
+      disableMetricsLookup: false

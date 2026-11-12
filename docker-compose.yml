@@ -89,6 +89,39 @@ services:
     volumes:
       - ./gateway/deploy/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
 
+  # ------------------------------------------------- Grafana（可选，profile=monitor）
+  # 打开 http://127.0.0.1:3000（默认 admin / admin，首次登录会要求改密码）。
+  # 数据源与看板都由 provisioning 自动装配：不需要在 UI 里手动 Add data source / Import。
+  # 看板文件：gateway/deploy/grafana/dashboard.json（改完等 30s 自动热更新）。
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: tsukiyohub-grafana
+    restart: unless-stopped
+    profiles: ["monitor"]
+    ports:
+      - "3000:3000"
+    environment:
+      # 生产请改这两个值（或在 .env 里覆盖），别用默认密码
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      # 打开 3000 端口直接落在总览看板，而不是空白 Home
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/dashboard.json
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_USERS_DEFAULT_THEME: dark
+      # 容器时区跟宿主机（面板时间轴按 UTC 存储，这里只影响 UI 展示）
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      # 自动装配：数据源 + 看板 provider 配置
+      - ./gateway/deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      # 看板本体（dashboards.yml 里 options.path 指向 /var/lib/grafana/dashboards）
+      - ./gateway/deploy/grafana/dashboard.json:/var/lib/grafana/dashboards/dashboard.json:ro
+      # Grafana 自己的 sqlite（用户、星标、UI 上的临时改动）
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
   postgres:
     image: postgres:16-alpine
     container_name: tsukiyohub-postgres
@@ -160,3 +193,4 @@ volumes:
   minio_data:
   milvus_data:
   prometheus_data:
+  grafana_data:
