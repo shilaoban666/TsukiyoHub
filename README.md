@@ -15,7 +15,7 @@
 [![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](pyproject.toml)
 [![Go](https://img.shields.io/badge/go-1.22%2B-00ADD8?logo=go&logoColor=white)](gateway/go.mod)
 [![Node](https://img.shields.io/badge/node-20-339933?logo=nodedotjs&logoColor=white)](web/package.json)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 [![Prometheus](https://img.shields.io/badge/metrics-Prometheus-E6522C?logo=prometheus&logoColor=white)](docs/observability.md)
 [![Grafana](https://img.shields.io/badge/dashboards-Grafana-F46800?logo=grafana&logoColor=white)](gateway/deploy/grafana/dashboard.json)
 [![GitHub stars](https://img.shields.io/github/stars/shilaoban666/TsukiyoHub?style=flat)](https://github.com/shilaoban666/TsukiyoHub/stargazers)
@@ -378,6 +378,6 @@ python scripts\smoke.py --base http://127.0.0.1:8080
 
 <div align="center">
 
-MIT License · 用任意前端，接同一个内核 🌙
+Apache-2.0 License · 用任意前端，接同一个内核 🌙
 
 </div>

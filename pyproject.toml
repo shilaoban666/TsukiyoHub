@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "TsukiyoHub —— 与业务无关的「聊天 + 技能 + RAG」内核服务，任何前端都可以接入"
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "MIT" }
+license = { text = "Apache-2.0" }
 authors = [{ name = "shilaoban666" }]
 keywords = ["rag", "chat", "agent", "skills", "mcp", "fastapi", "llm"]
 

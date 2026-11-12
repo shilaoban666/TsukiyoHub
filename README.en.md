@@ -10,7 +10,7 @@
 [![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](pyproject.toml)
 [![Go](https://img.shields.io/badge/go-1.22%2B-00ADD8?logo=go&logoColor=white)](gateway/go.mod)
 [![Node](https://img.shields.io/badge/node-20-339933?logo=nodedotjs&logoColor=white)](web/package.json)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 [![Prometheus](https://img.shields.io/badge/metrics-Prometheus-E6522C?logo=prometheus&logoColor=white)](docs/observability.md)
 [![Grafana](https://img.shields.io/badge/dashboards-Grafana-F46800?logo=grafana&logoColor=white)](gateway/deploy/grafana/dashboard.json)
 [![GitHub stars](https://img.shields.io/github/stars/shilaoban666/TsukiyoHub?style=flat)](https://github.com/shilaoban666/TsukiyoHub/stargazers)
@@ -411,7 +411,7 @@ Source size (measured, excluding dependencies and build output): **≈15 k lines
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+Apache-2.0 — see [LICENSE](LICENSE).
 
 The demo animation at the top is recorded against the local demo instance; regenerate it with the script under
 `scripts/demo/` (keep the GIF under 10 MB so GitHub renders it inline).

@@ -46,7 +46,7 @@ python -c "import re,pathlib as P; r=P.Path('.'); m=[l for md in ('README.md','R
 ```
 llm-gateway  llm-router  openai-compatible  ai-infrastructure  agent  rag  hybrid-search
 bm25  rrf  prompt-engineering  fastapi  golang  vue3  typescript  prometheus  grafana
-observability  sse  self-hosted  mit-license
+observability  sse  self-hosted  apache-2.0
 ```
 
 **Features**: enable Issues, Discussions and "Require a pull request before merging" on `main`; keep Actions
@@ -119,5 +119,5 @@ experience.
 - [ ] `README.md` and `README.en.md` cross-link to each other at the top.
 - [ ] `docs/assets/demo.gif` < 10 MB and `docs/assets/*.png` load from a fresh clone.
 - [ ] Issue templates and the PR template exist under `.github/`.
-- [ ] LICENSE (MIT) present; dependencies are compatible with it.
+- [ ] LICENSE (Apache-2.0) present; dependencies are compatible with it.
 - [ ] "Status and roadmap" still honest — anything unimplemented must stay in the *not implemented* list.
